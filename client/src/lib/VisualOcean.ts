@@ -424,6 +424,9 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
 
     this.boatMesh.material = boatMaterial;
 
+    // Use quaternion mode from the start to avoid euler/quaternion conflicts in Babylon.
+    this.boatMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+
     if (this.shadowGenerator) {
       this.shadowGenerator.addShadowCaster(this.boatMesh);
     }
@@ -510,25 +513,56 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   private updateBoatPhysics(): void {
     if (!this.boatMesh) return;
 
-    const boatPos = this.boatMesh.getAbsolutePosition();
+    const bx = this.boatMesh.position.x;
+    const bz = this.boatMesh.position.z;
     const t = this.waveParams.time;
 
-    const halfLength = 10;
-    const halfWidth = 5;
+    // Hull half-extents — match mesh dimensions (depth=32, width=16)
+    const halfLen = 14;
+    const halfWid = 7;
 
-    const bow = this.sampleWaveAt(boatPos.x, boatPos.z + halfLength, t);
-    const stern = this.sampleWaveAt(boatPos.x, boatPos.z - halfLength, t);
-    const port = this.sampleWaveAt(boatPos.x - halfWidth, boatPos.z, t);
-    const starboard = this.sampleWaveAt(boatPos.x + halfWidth, boatPos.z, t);
-    const center = this.sampleWaveAt(boatPos.x, boatPos.z, t);
+    // Sample 5 hull points from the same wave function the shader uses.
+    // This matches the article's ComputeBoatTransform() pattern exactly.
+    const hCenter    = this.sampleWaveAt(bx,           bz,           t);
+    const hBow       = this.sampleWaveAt(bx,           bz + halfLen, t);
+    const hStern     = this.sampleWaveAt(bx,           bz - halfLen, t);
+    const hStarboard = this.sampleWaveAt(bx + halfWid, bz,           t);
+    const hPort      = this.sampleWaveAt(bx - halfWid, bz,           t);
 
-    const targetY = (bow + stern + port + starboard + center) / 5 + 2.7;
-    const targetPitch = Math.atan2(stern - bow, halfLength * 2) * 0.95;
-    const targetRoll = Math.atan2(port - starboard, halfWidth * 2) * 0.9;
+    // Heave: average water height under hull + half-height of box mesh (7.5/2 = 3.75)
+    const targetY = (hCenter + hBow + hStern + hStarboard + hPort) / 5 + 3.75;
+    this.boatMesh.position.y = BABYLON.Scalar.Lerp(this.boatMesh.position.y, targetY, 0.12);
 
-    this.boatMesh.position.y = BABYLON.Scalar.Lerp(this.boatMesh.position.y, targetY, 0.1);
-    this.boatMesh.rotation.x = BABYLON.Scalar.Lerp(this.boatMesh.rotation.x, targetPitch, 0.12);
-    this.boatMesh.rotation.z = BABYLON.Scalar.Lerp(this.boatMesh.rotation.z, targetRoll, 0.12);
+    // Derive orientation basis vectors from the water surface (article approach).
+    // forward = bow point − stern point (in world space, xz span is fixed, y from wave)
+    const forward = new BABYLON.Vector3(0, hBow - hStern, halfLen * 2).normalize();
+    // right = starboard point − port point
+    const right = new BABYLON.Vector3(halfWid * 2, hStarboard - hPort, 0).normalize();
+    // up = surface normal derived from cross product
+    const up = BABYLON.Vector3.Cross(forward, right).normalize();
+    // Re-orthogonalize right so basis is truly orthonormal
+    const rightOrtho = BABYLON.Vector3.Cross(up, forward).normalize();
+
+    // Build a row-major rotation matrix from the three basis vectors.
+    const rotMatrix = BABYLON.Matrix.FromValues(
+      rightOrtho.x, rightOrtho.y, rightOrtho.z, 0,
+      up.x,         up.y,         up.z,         0,
+      forward.x,    forward.y,    forward.z,    0,
+      0,            0,            0,             1
+    );
+
+    const targetQuat = BABYLON.Quaternion.FromRotationMatrix(rotMatrix);
+
+    if (!this.boatMesh.rotationQuaternion) {
+      this.boatMesh.rotationQuaternion = BABYLON.Quaternion.Identity();
+    }
+    // Slerp from current orientation to the wave-derived orientation each frame.
+    BABYLON.Quaternion.SlerpToRef(
+      this.boatMesh.rotationQuaternion,
+      targetQuat,
+      0.12,
+      this.boatMesh.rotationQuaternion
+    );
   }
 
   private sampleWaveAt(x: number, z: number, t: number): number {

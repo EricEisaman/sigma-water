@@ -9,7 +9,7 @@ export class VisualOcean {
   private canvas: HTMLCanvasElement;
   private engine: BABYLON.WebGPUEngine | null = null;
   private scene: BABYLON.Scene | null = null;
-  private camera: BABYLON.UniversalCamera | null = null;
+  private camera: BABYLON.FreeCamera | null = null;
   private oceanMesh: BABYLON.Mesh | null = null;
   private boatMesh: BABYLON.Mesh | null = null;
   private islandMesh: BABYLON.Mesh | null = null;
@@ -17,8 +17,8 @@ export class VisualOcean {
   private light: BABYLON.DirectionalLight | null = null;
   private shadowGenerator: BABYLON.ShadowGenerator | null = null;
   private initialized = false;
-  private islandCenter = new BABYLON.Vector2(96, 58);
-  private islandRadius = 52;
+  private islandCenter = new BABYLON.Vector2(22, 10);
+  private islandRadius = 18;
 
   private waveParams = {
     amplitude: 2.6,
@@ -79,16 +79,42 @@ export class VisualOcean {
   private setupCamera(): void {
     if (!this.scene) throw new Error('Scene not initialized');
     
-    this.camera = new BABYLON.UniversalCamera('camera', new BABYLON.Vector3(-30, 86, 190));
+    this.camera = new BABYLON.FreeCamera('camera', new BABYLON.Vector3(-17.3, 5, -9));
     this.camera.attachControl(this.canvas, true);
-    this.camera.speed = 50;
+    this.camera.rotation.set(0.21402315044176745, 1.5974857677541419, 0);
+    const normalSpeed = 4;
+    const boostSpeed = 12;
+    this.camera.speed = normalSpeed;
     this.camera.angularSensibility = 1000;
-    this.camera.inertia = 0.7;
-    this.camera.minZ = 0.1;
+    this.camera.inertia = 0.8;
+    this.camera.minZ = 1;
     this.camera.maxZ = 10000;
 
     this.scene.activeCamera = this.camera;
-    this.camera.setTarget(new BABYLON.Vector3(52, 4, 42));
+
+    this.scene.onKeyboardObservable.add((kbInfo) => {
+      if (!this.camera) return;
+      switch (kbInfo.type) {
+        case BABYLON.KeyboardEventTypes.KEYDOWN:
+          if (kbInfo.event.key === 'Shift') {
+            this.camera.speed = boostSpeed;
+          }
+          break;
+        case BABYLON.KeyboardEventTypes.KEYUP:
+          if (kbInfo.event.key === 'Shift') {
+            this.camera.speed = normalSpeed;
+          }
+          break;
+      }
+    });
+
+    // Keep startup framing just above water level while allowing full navigation.
+    this.scene.onBeforeRenderObservable.add(() => {
+      if (this.camera && this.camera.position.y < 1.8) {
+        this.camera.position.y = 1.8;
+      }
+    });
+
     console.log('✅ Camera configured');
   }
 
@@ -128,7 +154,7 @@ export class VisualOcean {
     console.log('Creating ocean mesh...');
     
     const gridSize = 256;
-    const meshSize = 5000;
+    const meshSize = 3000;
     this.oceanMesh = BABYLON.MeshBuilder.CreateGround('ocean', {
       width: meshSize,
       height: meshSize,
@@ -314,14 +340,14 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
 
   // Distance-field foam around dynamic boat hull and static island shoreline.
   let worldXZ = input.vWorldPos.xz;
-  let boatDist = sdfCircle(worldXZ, uniforms.boatPos, 11.0);
+  let boatDist = sdfCircle(worldXZ, uniforms.boatPos, 5.2);
   let boatRim = smoothstep(3.0, 0.0, abs(boatDist));
   let wakeDir = normalize(vec2<f32>(0.0, 1.0));
   let rel = worldXZ - uniforms.boatPos;
   let wakeLong = max(dot(rel, -wakeDir), 0.0);
   let wakeLat = abs(dot(rel, vec2<f32>(wakeDir.y, -wakeDir.x)));
-  let wakeSdf = wakeLat - (2.5 + wakeLong * 0.12);
-  let wakeFoam = smoothstep(2.0, 0.0, wakeSdf) * exp(-wakeLong * 0.02);
+  let wakeSdf = wakeLat - (1.25 + wakeLong * 0.08);
+  let wakeFoam = smoothstep(1.0, 0.0, wakeSdf) * exp(-wakeLong * 0.05);
 
   let shoreDist = abs(sdfCircle(worldXZ, uniforms.islandCenter, uniforms.islandRadius));
   let shoreFoam = smoothstep(6.0, 0.0, shoreDist);
@@ -409,12 +435,12 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
     if (!this.scene) throw new Error('Scene not initialized');
 
     this.boatMesh = BABYLON.MeshBuilder.CreateBox('boat', {
-      width: 16,
-      height: 7.5,
-      depth: 32,
+      width: 7,
+      height: 3.6,
+      depth: 16,
     }, this.scene);
 
-    this.boatMesh.position = new BABYLON.Vector3(28, 3.5, 26);
+    this.boatMesh.position = new BABYLON.Vector3(-6, 1.8, -12);
 
     const boatMaterial = new BABYLON.PBRMaterial('boatMaterial', this.scene);
     boatMaterial.albedoColor = new BABYLON.Color3(0.88, 0.44, 0.24);
@@ -517,9 +543,9 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
     const bz = this.boatMesh.position.z;
     const t = this.waveParams.time;
 
-    // Hull half-extents — match mesh dimensions (depth=32, width=16)
-    const halfLen = 14;
-    const halfWid = 7;
+    // Hull half-extents — match mesh dimensions (depth=16, width=7)
+    const halfLen = 6.8;
+    const halfWid = 3.2;
 
     // Sample 5 hull points from the same wave function the shader uses.
     // This matches the article's ComputeBoatTransform() pattern exactly.
@@ -529,8 +555,8 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
     const hStarboard = this.sampleWaveAt(bx + halfWid, bz,           t);
     const hPort      = this.sampleWaveAt(bx - halfWid, bz,           t);
 
-    // Heave: average water height under hull + half-height of box mesh (7.5/2 = 3.75)
-    const targetY = (hCenter + hBow + hStern + hStarboard + hPort) / 5 + 3.75;
+    // Heave: average water height under hull + half-height of box mesh (3.6/2 = 1.8)
+    const targetY = (hCenter + hBow + hStern + hStarboard + hPort) / 5 + 1.8;
     this.boatMesh.position.y = BABYLON.Scalar.Lerp(this.boatMesh.position.y, targetY, 0.12);
 
     // Derive orientation basis vectors from the water surface (article approach).

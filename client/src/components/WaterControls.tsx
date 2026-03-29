@@ -32,6 +32,7 @@ type ControlValues = {
   showProxySpheres: number;
   cameraDistance: number;
   cameraHeight: number;
+  cameraAngle: number;
 };
 
 const STORAGE_KEY = 'sigma-water-controls-v1';
@@ -58,6 +59,7 @@ const DEFAULT_VALUES: ControlValues = {
   showProxySpheres: 1,
   cameraDistance: 100,
   cameraHeight: 50,
+  cameraAngle: 0,
 };
 
 const PARAM_KEYS: Record<keyof ControlValues, string> = {
@@ -82,6 +84,7 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   showProxySpheres: 'ps',
   cameraDistance: 'cd',
   cameraHeight: 'ch',
+  cameraAngle: 'ca',
 };
 
 function getInitialValues(): ControlValues {
@@ -144,6 +147,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   // Camera
   const [cameraDistance, setCameraDistance] = useState(initialValues.cameraDistance);
   const [cameraHeight, setCameraHeight] = useState(initialValues.cameraHeight);
+  const [cameraAngle, setCameraAngle] = useState(initialValues.cameraAngle);
 
   // UI state
   const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | null>('waves');
@@ -216,6 +220,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       showProxySpheres,
       cameraDistance,
       cameraHeight,
+      cameraAngle,
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
@@ -250,6 +255,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     showProxySpheres,
     cameraDistance,
     cameraHeight,
+    cameraAngle,
   ]);
 
   const handleWindDirectionChange = useCallback((value: number[]) => {
@@ -379,6 +385,12 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onCameraChange(x, val, z);
   }, [onCameraChange, windDirection, cameraDistance]);
 
+  const handleCameraAngleChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setCameraAngle(val);
+    onParameterChange('cameraAngle', val);
+  }, [onParameterChange]);
+
   const handleReset = useCallback(() => {
     setWaveAmplitude(1.8);
     setWaveFrequency(1.2);
@@ -401,6 +413,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setShowProxySpheres(1);
     setCameraDistance(100);
     setCameraHeight(50);
+    setCameraAngle(0);
 
     onParameterChange('waveAmplitude', 1.8);
     onParameterChange('waveFrequency', 1.2);
@@ -833,6 +846,20 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     onValueChange={(v) => handleCameraHeightChange(v)}
                     min={10}
                     max={600}
+                    step={5}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Angle: <span className="text-green-400 font-bold">{cameraAngle.toFixed(0)}°</span>
+                  </label>
+                  <Slider
+                    value={[cameraAngle]}
+                    onValueChange={(v) => handleCameraAngleChange(v)}
+                    min={0}
+                    max={360}
                     step={5}
                     className="w-full"
                   />

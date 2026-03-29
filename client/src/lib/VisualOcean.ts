@@ -70,6 +70,10 @@ export class VisualOcean {
   private islandRadius = this.baseIslandRadius;
   private boatStartOffset = new Vector2(-18, -14);
 
+  private cameraAngle: number = 0; // Angle around vertical axis in degrees
+  private cameraDistance: number = 20; // Distance from center
+  private cameraHeight: number = 5; // Height above water
+
   private waveParams = {
     amplitude: 2.6,
     frequency: 1.35,
@@ -883,6 +887,9 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
 
       this.waveParams.time += 0.02;
 
+      // Update camera position based on angle
+      this.updateCameraPosition();
+
       this.updateBoatPhysics();
       this.syncCollisionProxies();
 
@@ -1245,6 +1252,27 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       this.updateContactBoundaries();
       this.syncCollisionProxies();
     }
+  }
+
+  public setCameraAngle(angle: number): void {
+    this.cameraAngle = angle % 360;
+  }
+
+  public getCameraAngle(): number {
+    return this.cameraAngle;
+  }
+
+  private updateCameraPosition(): void {
+    if (!this.camera) return;
+    const angleRad = (this.cameraAngle * Math.PI) / 180;
+    const centerX = 0;
+    const centerZ = 0;
+    const x = centerX + this.cameraDistance * Math.cos(angleRad);
+    const z = centerZ + this.cameraDistance * Math.sin(angleRad);
+    this.camera.position.x = x;
+    this.camera.position.z = z;
+    this.camera.position.y = this.cameraHeight;
+    this.camera.setTarget(new Vector3(centerX, this.cameraHeight * 0.5, centerZ));
   }
 
   private computeModelScaleToTarget(meshes: AbstractMesh[], targetSpan: number): number {

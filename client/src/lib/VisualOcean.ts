@@ -77,6 +77,8 @@ export class VisualOcean {
     causticIntensity: 0.85,
     causticScale: 2.5,
     foamDistanceScale: 0.23,
+    foamWidth: 1.0,
+    foamNoiseFactor: 0.45,
     depthFadeDistance: 1.15,
     depthFadeExponent: 1.65,
     boatScale: 1,
@@ -264,6 +266,8 @@ uniform boatPos : vec2<f32>;
 uniform islandCenter : vec2<f32>;
 uniform islandRadius : f32;
 uniform foamDistanceScale : f32;
+uniform foamWidth : f32;
+uniform foamNoiseFactor : f32;
 uniform boatFoamRadius : f32;
 uniform wakeWidth : f32;
 uniform collisionMode : f32;
@@ -430,7 +434,7 @@ fn sphereCrossSectionRingFoam(worldXZ: vec2<f32>, sphereCenter: vec3<f32>, cross
   }
 
   let ringDist = abs(length(worldXZ - sphereCenter.xz) - crossRadius);
-  return smoothstep(edgeWidth, 0.0, ringDist);
+  return smoothstep(edgeWidth * max(uniforms.foamWidth, 0.05), 0.0, ringDist);
 }
 
 fn hash2(p: vec2<f32>) -> f32 {
@@ -516,7 +520,7 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let worldXZ = input.vWorldPos.xz;
   let lowFoamNoise = fbm(worldXZ * 0.14 + vec2<f32>(uniforms.time * 0.09, -uniforms.time * 0.07));
   let highFoamNoise = fbm(worldXZ * 0.43 + vec2<f32>(-uniforms.time * 0.31, uniforms.time * 0.27));
-  let foamNoise = lowFoamNoise * 0.64 + highFoamNoise * 0.36;
+  let foamNoise = mix(lowFoamNoise, highFoamNoise, clamp(uniforms.foamNoiseFactor, 0.0, 1.0));
   let cutoff = 0.52;
   let crestFoam = smoothstep(cutoff, cutoff + 0.20, input.vFoamMask + (foamNoise - 0.5) * 0.45);
 
@@ -525,7 +529,7 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let useSphereCollision = max(step(0.5, uniforms.collisionMode), step(0.5, uniforms.showProxySpheres));
 
   let boatDist = sdfCircle(worldXZ, uniforms.boatPos, uniforms.boatFoamRadius);
-  let boatRimWidth = max(uniforms.boatFoamRadius * 0.75, 0.6);
+  let boatRimWidth = max(uniforms.boatFoamRadius * 0.75, 0.6) * max(uniforms.foamWidth, 0.05);
   let boatRimGLB = smoothstep(boatRimWidth, 0.0, abs(boatDist));
   let wakeDir = normalize(vec2<f32>(0.0, 1.0));
   let rel = worldXZ - uniforms.boatPos;
@@ -536,7 +540,7 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let wakeFoamGLB = smoothstep(1.0, 0.0, wakeSdf) * exp(-wakeLong * 0.05) * wakeStreaks;
 
   let shoreDist = abs(sdfCircle(worldXZ, uniforms.islandCenter, uniforms.islandRadius));
-  let shoreFoamGLB = smoothstep(6.0, 0.0, shoreDist);
+  let shoreFoamGLB = smoothstep(6.0 * max(uniforms.foamWidth, 0.05), 0.0, shoreDist);
 
   let boatRimSphere = sphereCrossSectionRingFoam(worldXZ, uniforms.boatSphereCenter, uniforms.boatSphereCrossRadius, max(uniforms.boatSphereRadius * 0.1, 0.2));
   let shoreFoamSphere = sphereCrossSectionRingFoam(worldXZ, uniforms.islandSphereCenter, uniforms.islandSphereCrossRadius, max(uniforms.islandSphereRadius * 0.06, 0.45));
@@ -580,7 +584,7 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
         },
         {
           attributes: ['position', 'normal', 'uv'],
-          uniforms: ['time', 'amplitude', 'frequency', 'windDirection', 'windSpeed', 'foamIntensity', 'causticIntensity', 'causticScale', 'boatPos', 'islandCenter', 'islandRadius', 'foamDistanceScale', 'boatFoamRadius', 'wakeWidth', 'cameraNear', 'cameraFar', 'depthFadeDistance', 'depthFadeExponent', 'collisionMode', 'showProxySpheres', 'boatSphereCenter', 'boatSphereRadius', 'boatSphereCrossRadius', 'islandSphereCenter', 'islandSphereRadius', 'islandSphereCrossRadius'],
+          uniforms: ['time', 'amplitude', 'frequency', 'windDirection', 'windSpeed', 'foamIntensity', 'causticIntensity', 'causticScale', 'boatPos', 'islandCenter', 'islandRadius', 'foamDistanceScale', 'foamWidth', 'foamNoiseFactor', 'boatFoamRadius', 'wakeWidth', 'cameraNear', 'cameraFar', 'depthFadeDistance', 'depthFadeExponent', 'collisionMode', 'showProxySpheres', 'boatSphereCenter', 'boatSphereRadius', 'boatSphereCrossRadius', 'islandSphereCenter', 'islandSphereRadius', 'islandSphereCrossRadius'],
           samplers: ['sceneDepth'],
           uniformBuffers: ['Scene', 'Mesh'],
           needAlphaBlending: false,
@@ -608,6 +612,8 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       this.shaderMaterial.setVector2('islandCenter', this.islandCenter);
       this.shaderMaterial.setFloat('islandRadius', this.islandRadius);
       this.shaderMaterial.setFloat('foamDistanceScale', this.waveParams.foamDistanceScale);
+      this.shaderMaterial.setFloat('foamWidth', this.waveParams.foamWidth);
+      this.shaderMaterial.setFloat('foamNoiseFactor', this.waveParams.foamNoiseFactor);
       this.shaderMaterial.setFloat('boatFoamRadius', this.boatFoamRadius);
       this.shaderMaterial.setFloat('wakeWidth', this.wakeWidth);
       this.shaderMaterial.setFloat('cameraNear', this.camera?.minZ ?? 1.0);
@@ -804,6 +810,8 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
         this.shaderMaterial.setFloat('causticIntensity', this.waveParams.causticIntensity);
         this.shaderMaterial.setFloat('causticScale', this.waveParams.causticScale);
         this.shaderMaterial.setFloat('foamDistanceScale', this.waveParams.foamDistanceScale);
+          this.shaderMaterial.setFloat('foamWidth', this.waveParams.foamWidth);
+          this.shaderMaterial.setFloat('foamNoiseFactor', this.waveParams.foamNoiseFactor);
         this.shaderMaterial.setVector2('boatPos', this.boatMesh ? new Vector2(this.boatMesh.position.x, this.boatMesh.position.z) : this.boatContactPos);
         this.shaderMaterial.setVector2('islandCenter', this.islandCenter);
         this.shaderMaterial.setFloat('islandRadius', this.islandRadius);
@@ -1082,6 +1090,8 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       foamIntensity: 'foamIntensity',
       causticIntensity: 'causticIntensity',
       foamDistanceScale: 'foamDistanceScale',
+      foamWidth: 'foamWidth',
+      foamNoiseFactor: 'foamNoiseFactor',
       depthFadeDistance: 'depthFadeDistance',
       depthFadeExponent: 'depthFadeExponent',
       boatScale: 'boatScale',

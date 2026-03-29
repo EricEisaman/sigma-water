@@ -16,6 +16,8 @@ type ControlValues = {
   windDirection: number;
   windSpeed: number;
   foamIntensity: number;
+  foamWidth: number;
+  foamNoiseFactor: number;
   causticIntensity: number;
   depthFadeDistance: number;
   depthFadeExponent: number;
@@ -37,6 +39,8 @@ const DEFAULT_VALUES: ControlValues = {
   windDirection: 45,
   windSpeed: 0.6,
   foamIntensity: 0.7,
+  foamWidth: 1.0,
+  foamNoiseFactor: 0.45,
   causticIntensity: 0.85,
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
@@ -56,6 +60,8 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   windDirection: 'wd',
   windSpeed: 'ws',
   foamIntensity: 'fi',
+  foamWidth: 'fw',
+  foamNoiseFactor: 'fn',
   causticIntensity: 'ci',
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
@@ -109,6 +115,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
   // Visual effects
   const [foamIntensity, setFoamIntensity] = useState(initialValues.foamIntensity);
+  const [foamWidth, setFoamWidth] = useState(initialValues.foamWidth);
+  const [foamNoiseFactor, setFoamNoiseFactor] = useState(initialValues.foamNoiseFactor);
   const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
@@ -150,6 +158,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('windDirection', initialValues.windDirection);
     onParameterChange('windSpeed', initialValues.windSpeed);
     onParameterChange('foamIntensity', initialValues.foamIntensity);
+    onParameterChange('foamWidth', initialValues.foamWidth);
+    onParameterChange('foamNoiseFactor', initialValues.foamNoiseFactor);
     onParameterChange('causticIntensity', initialValues.causticIntensity);
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
@@ -175,6 +185,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       windDirection,
       windSpeed,
       foamIntensity,
+      foamWidth,
+      foamNoiseFactor,
       causticIntensity,
       depthFadeDistance,
       depthFadeExponent,
@@ -204,6 +216,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     windDirection,
     windSpeed,
     foamIntensity,
+    foamWidth,
+    foamNoiseFactor,
     causticIntensity,
     depthFadeDistance,
     depthFadeExponent,
@@ -238,6 +252,18 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     const val = value[0];
     setFoamIntensity(val);
     onParameterChange('foamIntensity', val);
+  }, [onParameterChange]);
+
+  const handleFoamWidthChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setFoamWidth(val);
+    onParameterChange('foamWidth', val);
+  }, [onParameterChange]);
+
+  const handleFoamNoiseFactorChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setFoamNoiseFactor(val);
+    onParameterChange('foamNoiseFactor', val);
   }, [onParameterChange]);
 
   const handleCausticIntensityChange = useCallback((value: number[]) => {
@@ -320,6 +346,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setWindDirection(45);
     setWindSpeed(0.6);
     setFoamIntensity(0.7);
+    setFoamWidth(1.0);
+    setFoamNoiseFactor(0.45);
     setCausticIntensity(0.85);
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
@@ -337,6 +365,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('windDirection', 45);
     onParameterChange('windSpeed', 0.6);
     onParameterChange('foamIntensity', 0.7);
+    onParameterChange('foamWidth', 1.0);
+    onParameterChange('foamNoiseFactor', 0.45);
     onParameterChange('causticIntensity', 0.85);
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
@@ -475,6 +505,34 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     min={0.0}
                     max={1.5}
                     step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Foam Width: <span className="text-purple-400 font-bold">{foamWidth.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[foamWidth]}
+                    onValueChange={(v) => handleFoamWidthChange(v)}
+                    min={0.2}
+                    max={3.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Foam Noise Blend: <span className="text-purple-400 font-bold">{foamNoiseFactor.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[foamNoiseFactor]}
+                    onValueChange={(v) => handleFoamNoiseFactorChange(v)}
+                    min={0.0}
+                    max={1.0}
+                    step={0.05}
                     className="w-full"
                   />
                 </div>

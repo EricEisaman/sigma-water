@@ -461,8 +461,8 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
 
           {/* Info Section */}
           <div className="border-t border-slate-700/30 pt-3 mt-3 text-xs text-slate-400 space-y-1">
-            <p>🖱️ <span className="text-slate-300">Mouse</span> to rotate camera</p>
-            <p>⌨️ <span className="text-slate-300">WASD</span> to move | <span className="text-slate-300">Scroll</span> to zoom</p>
+            <p>🖱️ <span className="text-slate-300">Mouse drag</span> to look around</p>
+            <p>⌨️ <span className="text-slate-300">Arrow keys</span> to move | <span className="text-slate-300">Shift</span> for boost</p>
             <p>✨ <span className="text-slate-300">512×512 mesh</span> for SIGGRAPH quality</p>
           </div>
         </CardContent>

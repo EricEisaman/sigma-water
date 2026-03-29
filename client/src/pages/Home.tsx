@@ -114,8 +114,8 @@ export default function Home() {
           </h1>
           <p className="text-sm text-gray-600 mt-1 font-medium">SIGGRAPH-Grade Ocean Renderer</p>
           <div className="text-xs text-gray-600 mt-3 space-y-1 font-mono">
-            <p>🎮 <span className="text-gray-700">Mouse: Rotate</span> | <span className="text-gray-700">Scroll: Zoom</span></p>
-            <p>⌨️ <span className="text-gray-700">WASD: Move</span> | <span className="text-gray-700">Q/E: Up/Down</span></p>
+            <p>🎮 <span className="text-gray-700">Mouse drag: Look around</span></p>
+            <p>⌨️ <span className="text-gray-700">Arrow keys: Move</span> | <span className="text-gray-700">Shift: Speed boost</span></p>
             <p>✨ <span className="text-gray-700">512×512 Mesh</span> | <span className="text-gray-700">Gerstner Waves</span></p>
           </div>
           <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">

@@ -1257,7 +1257,8 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   }
 
   public setCameraAngle(angle: number): void {
-    this.cameraAngle = angle % 360;
+    // Normalize to [0, 360) to keep cameraAngle consistent for all inputs
+    this.cameraAngle = ((angle % 360) + 360) % 360;
   }
 
   public getCameraAngle(): number {

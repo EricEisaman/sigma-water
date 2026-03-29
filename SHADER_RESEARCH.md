@@ -1,4 +1,4 @@
-# Three.js Water Pro Shader Research
+# Shader Research
 
 ## Key Technologies
 
@@ -10,7 +10,6 @@
 - Allows describing shader effects without writing raw shader code
 
 ### WebGPU Implementation
-- **Primary rendering backend** for Three.js Water Pro
 - **WGSL (WebGPU Shading Language)** for compute and render shaders
 - **Compute shaders** for FFT wave simulation
 - **Render shaders** for water surface rendering

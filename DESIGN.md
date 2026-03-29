@@ -1,4 +1,4 @@
-# Babylon.js 9 Water Pro Demo - Design & Architecture
+# Sigma Water Demo - Design & Architecture
 
 ## Overview
 
@@ -242,7 +242,6 @@ Real-time display of:
 ## References
 
 This design is informed by:
-- Three.js Water Pro implementation patterns
 - Babylon.js 9 rendering capabilities and Frame Graph system
 - Jerry Tessendorf's ocean simulation research
 - Gerstner wave theory for analytical wave displacement

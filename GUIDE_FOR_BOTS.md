@@ -1,4 +1,4 @@
-# Babylon.js 9 Water Pro Demo - Guide for Future Bot Work
+# Sigma Water Demo - Guide for Future Bot Work
 
 ## Project Overview
 

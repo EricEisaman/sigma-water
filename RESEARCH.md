@@ -1,6 +1,6 @@
-# Babylon.js 9 Water Pro Demo - Research Findings
+# Sigma Water Demo - Research Findings
 
-## Three.js Water Pro Features
+## Features
 
 ### Core Water Simulation
 - **FFT-Based Waves**: Fast Fourier Transform for realistic wave generation

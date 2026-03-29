@@ -110,7 +110,7 @@ export default function Home() {
       {initialized && !error && (
         <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-md text-gray-900 p-5 rounded-xl shadow-xl z-40 border border-white/30 max-w-sm">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-            🌊 Babylon.js Water Pro
+            🌊 Sigma Water
           </h1>
           <p className="text-sm text-gray-600 mt-1 font-medium">SIGGRAPH-Grade Ocean Renderer</p>
           <div className="text-xs text-gray-600 mt-3 space-y-1 font-mono">

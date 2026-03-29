@@ -1210,6 +1210,7 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       islandYOffset: 'islandYOffset',
       collisionMode: 'collisionMode',
       showProxySpheres: 'showProxySpheres',
+      cameraAngle: 'cameraAngle',
       logSiblingOffsets: 'logSiblingOffsets',
     };
 
@@ -1251,6 +1252,10 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       this.islandMeshes.forEach(m => (m as Mesh).refreshBoundingInfo?.());
       this.updateContactBoundaries();
       this.syncCollisionProxies();
+    }
+
+    if (internalKey === 'cameraAngle') {
+      this.setCameraAngle(value);
     }
   }
 

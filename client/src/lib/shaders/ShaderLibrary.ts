@@ -91,7 +91,7 @@ export class ShaderLibrary {
   /**
    * Apply shader to mesh
    */
-  applyShader(mesh: Mesh, shaderName: string): boolean {
+  applyShader(shaderName: string, mesh: Mesh): boolean {
     const shader = this.shaders.get(shaderName);
     if (!shader) {
       console.warn(`Shader "${shaderName}" not found`);

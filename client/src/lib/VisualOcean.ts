@@ -1366,17 +1366,37 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
         this.shaderLibrary = initializeShaderLibrary(this.scene);
       }
 
-      // Get the new shader from the library
-      const newShader = this.shaderLibrary.applyShader(shaderName, this.oceanMesh);
-      
-      if (!newShader) {
-        console.error(`❌ Failed to apply shader: ${shaderName}`);
+      // Clean up old shader material before switching
+      const oldMaterial = this.oceanMesh.material as ShaderMaterial | null;
+      if (oldMaterial && oldMaterial !== this.shaderMaterial) {
+        console.log('🧹 Disposing old shader material');
+        oldMaterial.dispose();
+      }
+
+      // Get shader instance from library
+      const shaderInstance = this.shaderLibrary.getShader(shaderName);
+      if (!shaderInstance) {
+        console.error(`❌ Shader not found in library: ${shaderName}`);
         return;
       }
 
-      // Update the reference to the current shader material
-      this.shaderMaterial = newShader as ShaderMaterial;
+      // Clone the shader material to create independent instance
+      const clonedMaterial = shaderInstance.material.clone(`${shaderName}_instance_${Date.now()}`);
+      if (!clonedMaterial) {
+        console.error(`❌ Failed to clone shader material: ${shaderName}`);
+        return;
+      }
+
+      // Apply cloned material to ocean mesh
+      this.oceanMesh.material = clonedMaterial;
+      this.shaderMaterial = clonedMaterial as ShaderMaterial;
       this.currentShaderName = shaderName;
+
+      // Configure material properties for ocean rendering
+      this.shaderMaterial.transparencyMode = Material.MATERIAL_OPAQUE;
+      this.shaderMaterial.alpha = 1.0;
+      this.shaderMaterial.backFaceCulling = false;
+      this.shaderMaterial.wireframe = false;
 
       // Restore all uniform state to the new shader
       this.restoreShaderUniforms();

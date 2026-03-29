@@ -370,20 +370,20 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCameraDistanceChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraDistance(val);
-    const angle = (windDirection * Math.PI) / 180;
+    const angle = (cameraAngle * Math.PI) / 180;
     const x = ISLAND_X + Math.cos(angle) * val;
     const z = ISLAND_Z + Math.sin(angle) * val;
     onCameraChange(x, cameraHeight, z);
-  }, [onCameraChange, windDirection, cameraHeight]);
+  }, [onCameraChange, cameraAngle, cameraHeight]);
 
   const handleCameraHeightChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraHeight(val);
-    const angle = (windDirection * Math.PI) / 180;
+    const angle = (cameraAngle * Math.PI) / 180;
     const x = ISLAND_X + Math.cos(angle) * cameraDistance;
     const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
     onCameraChange(x, val, z);
-  }, [onCameraChange, windDirection, cameraDistance]);
+  }, [onCameraChange, cameraAngle, cameraDistance]);
 
   const handleCameraAngleChange = useCallback((value: number[]) => {
     const val = value[0];

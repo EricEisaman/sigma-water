@@ -1346,4 +1346,11 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   public isInitialized(): boolean {
     return this.initialized;
   }
+
+  public switchShader(shaderName: string): void {
+    console.log(`🎨 Switching shader to: ${shaderName}`);
+    // Placeholder for shader switching logic
+    // This will be implemented when shader library is integrated
+    console.warn('Shader switching not yet implemented');
+  }
 }

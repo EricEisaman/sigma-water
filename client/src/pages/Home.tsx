@@ -70,6 +70,12 @@ export default function Home() {
     }
   };
 
+  const handleShaderChange = (shaderName: string) => {
+    if (oceanRef.current) {
+      oceanRef.current.switchShader(shaderName);
+    }
+  };
+
   return (
     <div className="w-full h-screen bg-gradient-to-b from-sky-200 via-sky-300 to-blue-400 overflow-hidden flex flex-col relative">
       {/* Canvas */}
@@ -140,6 +146,7 @@ export default function Home() {
           onParameterChange={handleParameterChange}
           onCameraChange={handleCameraChange}
           onTopDownView={handleTopDownView}
+          onShaderChange={handleShaderChange}
         />
       )}
 

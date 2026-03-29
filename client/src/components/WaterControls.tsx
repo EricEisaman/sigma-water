@@ -8,6 +8,7 @@ interface WaterControlsProps {
   onParameterChange: (key: string, value: number) => void;
   onCameraChange: (x: number, y: number, z: number) => void;
   onTopDownView: () => void;
+  onShaderChange?: (shaderName: string) => void;
 }
 
 type ControlValues = {
@@ -33,6 +34,7 @@ type ControlValues = {
   cameraDistance: number;
   cameraHeight: number;
   cameraAngle: number;
+  waterType: string;
 };
 
 const STORAGE_KEY = 'sigma-water-controls-v1';
@@ -60,6 +62,7 @@ const DEFAULT_VALUES: ControlValues = {
   cameraDistance: 100,
   cameraHeight: 50,
   cameraAngle: 0,
+  waterType: 'gerstnerWaves',
 };
 
 const PARAM_KEYS: Record<keyof ControlValues, string> = {
@@ -85,6 +88,7 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   cameraDistance: 'cd',
   cameraHeight: 'ch',
   cameraAngle: 'ca',
+  waterType: 'wt',
 };
 
 function getInitialValues(): ControlValues {
@@ -116,7 +120,7 @@ function getInitialValues(): ControlValues {
   return next;
 }
 
-export function WaterControls({ onParameterChange, onCameraChange, onTopDownView }: WaterControlsProps) {
+export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange }: WaterControlsProps) {
   const initialValues = useState<ControlValues>(() => getInitialValues())[0];
 
   // Wave parameters
@@ -149,8 +153,11 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [cameraHeight, setCameraHeight] = useState(initialValues.cameraHeight);
   const [cameraAngle, setCameraAngle] = useState(initialValues.cameraAngle);
 
+  // Water type (shader selection)
+  const [waterType, setWaterType] = useState(initialValues.waterType);
+
   // UI state
-  const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | null>('waves');
+  const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | 'waterType' | null>('waves');
 
   const handleWaveAmplitudeChange = useCallback((value: number[]) => {
     const val = value[0];
@@ -441,7 +448,14 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onCameraChange(x, 50, z);
   }, [onParameterChange, onCameraChange]);
 
-  const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera') => {
+  const handleShaderChange = useCallback((shaderName: string) => {
+    setWaterType(shaderName);
+    if (onShaderChange) {
+      onShaderChange(shaderName);
+    }
+  }, [onShaderChange]);
+
+  const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera' | 'waterType') => {
     setExpandedSection(expandedSection === section ? null : section);
   };
 
@@ -467,6 +481,39 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
         </CardHeader>
 
         <CardContent className="space-y-3 pb-4 pt-4">
+          {/* Water Type Section */}
+          <div className="space-y-2">
+            <button
+              onClick={() => toggleSection('waterType')}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Wind className="h-4 w-4 text-cyan-400" />
+                <span className="text-sm font-semibold text-white">Water Type</span>
+              </div>
+              <span className="text-xs text-slate-400">{expandedSection === 'waterType' ? '▼' : '▶'}</span>
+            </button>
+
+            {expandedSection === 'waterType' && (
+              <div className="space-y-2 pl-2">
+                <label className="text-sm font-medium text-slate-300">Shader Material</label>
+                <select
+                  value={waterType}
+                  onChange={(e) => handleShaderChange(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-white text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
+                >
+                  <option value="gerstnerWaves">Gerstner Waves (High Performance)</option>
+                  <option value="oceanWaves">Ocean Waves (Procedural)</option>
+                </select>
+                <p className="text-xs text-slate-400 mt-1">
+                  {waterType === 'gerstnerWaves'
+                    ? 'High-performance wave simulation with dynamic foam and caustics'
+                    : 'Multi-octave procedural ocean with advanced normal calculation'}
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Wave Parameters Section */}
           <div className="space-y-2">
             <button

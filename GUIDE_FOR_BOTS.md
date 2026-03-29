@@ -11,10 +11,13 @@ Primary deployment model: Static Site.
 - Frontend output directory: `dist/public`.
 - Active runtime renderer path: `client/src/lib/VisualOcean.ts` used by `client/src/pages/Home.tsx`.
 - WebGPU/WGSL requirement: keep active shader flow WGSL-only.
+- Babylon.js import style: **named imports only** from `@babylonjs/core` — no `import * as BABYLON` namespace. `@babylonjs/loaders` is imported as a side-effect for GLB support.
+- 3D assets: GLB models served from `client/public/assets/models/` (diving-boat.glb, island.glb). Loaded at runtime via `SceneLoader.ImportMeshAsync`.
 
 Cleanup status (important):
 - Removed legacy modules: `client/src/lib/WaterScene.ts`, `client/src/lib/OceanShaders.ts`.
 - Removed duplicate/orphaned shader assets under `client/public/shaders` and `public/shaders`.
+- Removed placeholder box/cylinder meshes for boat and island — replaced with GLB models.
 - Current production path does not depend on those deleted files.
 
 Operational priority order:
@@ -70,7 +73,9 @@ Minimum smoke test checklist:
 - Scene initializes (not only UI overlay).
 - Skybox visible.
 - Ocean mesh visible and animated.
-- Boat visible.
+- Boat (diving-boat.glb) visible and floating on waves.
+- Island (island.glb) visible at scene center.
+- No GLB 404s in network tab (`/assets/models/diving-boat.glb`, `/assets/models/island.glb`).
 
 ## 4) Incident Playbooks
 

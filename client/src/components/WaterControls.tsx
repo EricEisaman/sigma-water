@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Settings2, Eye, Wind } from 'lucide-react';
+import { RotateCcw, Settings2, Eye, Wind, Boxes } from 'lucide-react';
 
 interface WaterControlsProps {
   onParameterChange: (key: string, value: number) => void;
@@ -19,13 +19,21 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
   // Visual effects
   const [foamIntensity, setFoamIntensity] = useState(0.7);
   const [causticIntensity, setCausticIntensity] = useState(0.85);
+  const [depthFadeDistance, setDepthFadeDistance] = useState(1.15);
+  const [depthFadeExponent, setDepthFadeExponent] = useState(1.65);
+
+  // Objects
+  const [boatScale, setBoatScale] = useState(1);
+  const [boatYOffset, setBoatYOffset] = useState(0.4);
+  const [islandScale, setIslandScale] = useState(1);
+  const [islandYOffset, setIslandYOffset] = useState(0);
 
   // Camera
   const [cameraDistance, setCameraDistance] = useState(100);
   const [cameraHeight, setCameraHeight] = useState(50);
 
   // UI state
-  const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'camera' | null>('waves');
+  const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | null>('waves');
 
   const handleWaveAmplitudeChange = useCallback((value: number[]) => {
     const val = value[0];
@@ -39,14 +47,17 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
     onParameterChange('waveFrequency', val);
   }, [onParameterChange]);
 
+  const ISLAND_X = 22;
+  const ISLAND_Z = 10;
+
   const handleWindDirectionChange = useCallback((value: number[]) => {
     const val = value[0];
     setWindDirection(val);
     onParameterChange('windDirection', val);
     // Update camera to follow wind direction
     const angle = (val * Math.PI) / 180;
-    const x = Math.cos(angle) * cameraDistance;
-    const z = Math.sin(angle) * cameraDistance;
+    const x = ISLAND_X + Math.cos(angle) * cameraDistance;
+    const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
     onCameraChange(x, cameraHeight, z);
   }, [onParameterChange, onCameraChange, cameraDistance, cameraHeight]);
 
@@ -68,12 +79,48 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
     onParameterChange('causticIntensity', val);
   }, [onParameterChange]);
 
+  const handleDepthFadeDistanceChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setDepthFadeDistance(val);
+    onParameterChange('depthFadeDistance', val);
+  }, [onParameterChange]);
+
+  const handleDepthFadeExponentChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setDepthFadeExponent(val);
+    onParameterChange('depthFadeExponent', val);
+  }, [onParameterChange]);
+
+  const handleBoatScaleChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setBoatScale(val);
+    onParameterChange('boatScale', val);
+  }, [onParameterChange]);
+
+  const handleBoatYOffsetChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setBoatYOffset(val);
+    onParameterChange('boatYOffset', val);
+  }, [onParameterChange]);
+
+  const handleIslandScaleChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setIslandScale(val);
+    onParameterChange('islandScale', val);
+  }, [onParameterChange]);
+
+  const handleIslandYOffsetChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setIslandYOffset(val);
+    onParameterChange('islandYOffset', val);
+  }, [onParameterChange]);
+
   const handleCameraDistanceChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraDistance(val);
     const angle = (windDirection * Math.PI) / 180;
-    const x = Math.cos(angle) * val;
-    const z = Math.sin(angle) * val;
+    const x = ISLAND_X + Math.cos(angle) * val;
+    const z = ISLAND_Z + Math.sin(angle) * val;
     onCameraChange(x, cameraHeight, z);
   }, [onCameraChange, windDirection, cameraHeight]);
 
@@ -81,8 +128,8 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
     const val = value[0];
     setCameraHeight(val);
     const angle = (windDirection * Math.PI) / 180;
-    const x = Math.cos(angle) * cameraDistance;
-    const z = Math.sin(angle) * cameraDistance;
+    const x = ISLAND_X + Math.cos(angle) * cameraDistance;
+    const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
     onCameraChange(x, val, z);
   }, [onCameraChange, windDirection, cameraDistance]);
 
@@ -93,6 +140,12 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
     setWindSpeed(0.6);
     setFoamIntensity(0.7);
     setCausticIntensity(0.85);
+    setDepthFadeDistance(1.15);
+    setDepthFadeExponent(1.65);
+    setBoatScale(1);
+    setBoatYOffset(0.4);
+    setIslandScale(1);
+    setIslandYOffset(0);
     setCameraDistance(100);
     setCameraHeight(50);
 
@@ -102,10 +155,16 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
     onParameterChange('windSpeed', 0.6);
     onParameterChange('foamIntensity', 0.7);
     onParameterChange('causticIntensity', 0.85);
+    onParameterChange('depthFadeDistance', 1.15);
+    onParameterChange('depthFadeExponent', 1.65);
+    onParameterChange('boatScale', 1);
+    onParameterChange('boatYOffset', 0.4);
+    onParameterChange('islandScale', 1);
+    onParameterChange('islandYOffset', 0);
     onCameraChange(70.7, 50, 70.7);
   }, [onParameterChange, onCameraChange]);
 
-  const toggleSection = (section: 'waves' | 'effects' | 'camera') => {
+  const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera') => {
     setExpandedSection(expandedSection === section ? null : section);
   };
 
@@ -115,7 +174,7 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
         <CardHeader className="pb-3 border-b border-slate-700/30">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-xl font-bold text-white">🌊 Ocean Controls</CardTitle>
+              <CardTitle className="text-xl font-bold text-white">🌊 Controls</CardTitle>
               <CardDescription className="text-xs text-slate-400 mt-1">SIGGRAPH-Grade Rendering</CardDescription>
             </div>
             <Button
@@ -244,6 +303,108 @@ export function WaterControls({ onParameterChange, onCameraChange }: WaterContro
                     onValueChange={(v) => handleCausticIntensityChange(v)}
                     min={0.0}
                     max={1.5}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Depth Fade Width: <span className="text-purple-400 font-bold">{depthFadeDistance.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[depthFadeDistance]}
+                    onValueChange={(v) => handleDepthFadeDistanceChange(v)}
+                    min={0.35}
+                    max={3.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Depth Fade Curve: <span className="text-purple-400 font-bold">{depthFadeExponent.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[depthFadeExponent]}
+                    onValueChange={(v) => handleDepthFadeExponentChange(v)}
+                    min={0.7}
+                    max={3.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Objects Section */}
+          <div className="space-y-2">
+            <button
+              onClick={() => toggleSection('objects')}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Boxes className="h-4 w-4 text-amber-400" />
+                <span className="text-sm font-semibold text-white">Objects</span>
+              </div>
+              <span className="text-xs text-slate-400">{expandedSection === 'objects' ? '▼' : '▶'}</span>
+            </button>
+
+            {expandedSection === 'objects' && (
+              <div className="space-y-3 pl-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Boat Scale: <span className="text-amber-400 font-bold">{boatScale.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[boatScale]}
+                    onValueChange={(v) => handleBoatScaleChange(v)}
+                    min={0.5}
+                    max={2.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Boat Y Position: <span className="text-amber-400 font-bold">{boatYOffset.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[boatYOffset]}
+                    onValueChange={(v) => handleBoatYOffsetChange(v)}
+                    min={-1.0}
+                    max={3.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Island Scale: <span className="text-amber-400 font-bold">{islandScale.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[islandScale]}
+                    onValueChange={(v) => handleIslandScaleChange(v)}
+                    min={0.5}
+                    max={2.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Island Y Position: <span className="text-amber-400 font-bold">{islandYOffset.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[islandYOffset]}
+                    onValueChange={(v) => handleIslandYOffsetChange(v)}
+                    min={-8.0}
+                    max={12.0}
                     step={0.1}
                     className="w-full"
                   />

@@ -434,7 +434,10 @@ fn sphereCrossSectionRingFoam(worldXZ: vec2<f32>, sphereCenter: vec3<f32>, cross
   }
 
   let ringDist = abs(length(worldXZ - sphereCenter.xz) - crossRadius);
-  return smoothstep(edgeWidth * max(uniforms.foamWidth, 0.05), 0.0, ringDist);
+  let ring = smoothstep(edgeWidth * max(uniforms.foamWidth, 0.05), 0.0, ringDist);
+  // Keep perceived ring brightness from dropping as intersection radius grows.
+  let sizeComp = clamp(pow(max(crossRadius, 0.0001), 0.28), 0.9, 2.0);
+  return clamp(ring * sizeComp, 0.0, 1.0);
 }
 
 fn hash2(p: vec2<f32>) -> f32 {
@@ -529,7 +532,7 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let useSphereCollision = max(step(0.5, uniforms.collisionMode), step(0.5, uniforms.showProxySpheres));
 
   let boatDist = sdfCircle(worldXZ, uniforms.boatPos, uniforms.boatFoamRadius);
-  let boatRimWidth = max(uniforms.boatFoamRadius * 0.75, 0.6) * max(uniforms.foamWidth, 0.05);
+  let boatRimWidth = max(0.6, 1.0 * max(uniforms.foamWidth, 0.05));
   let boatRimGLB = smoothstep(boatRimWidth, 0.0, abs(boatDist));
   let wakeDir = normalize(vec2<f32>(0.0, 1.0));
   let rel = worldXZ - uniforms.boatPos;
@@ -542,15 +545,17 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let shoreDist = abs(sdfCircle(worldXZ, uniforms.islandCenter, uniforms.islandRadius));
   let shoreFoamGLB = smoothstep(6.0 * max(uniforms.foamWidth, 0.05), 0.0, shoreDist);
 
-  let boatRimSphere = sphereCrossSectionRingFoam(worldXZ, uniforms.boatSphereCenter, uniforms.boatSphereCrossRadius, max(uniforms.boatSphereRadius * 0.1, 0.2));
-  let shoreFoamSphere = sphereCrossSectionRingFoam(worldXZ, uniforms.islandSphereCenter, uniforms.islandSphereCrossRadius, max(uniforms.islandSphereRadius * 0.06, 0.45));
+  let boatRimSphere = sphereCrossSectionRingFoam(worldXZ, uniforms.boatSphereCenter, uniforms.boatSphereCrossRadius, 1.0);
+  let shoreFoamSphere = sphereCrossSectionRingFoam(worldXZ, uniforms.islandSphereCenter, uniforms.islandSphereCrossRadius, 1.2);
 
   let boatRim = mix(boatRimGLB, boatRimSphere, useSphereCollision);
   let wakeFoam = mix(wakeFoamGLB, 0.0, useSphereCollision);
   let shoreFoam = mix(shoreFoamGLB, shoreFoamSphere, useSphereCollision);
 
   let contactNoise = smoothstep(0.25, 0.85, fbm(worldXZ * 0.38 + vec2<f32>(uniforms.time * 0.21, uniforms.time * 0.16)));
-  let sdfContactFoam = ((boatRim + wakeFoam) * 4.5 + shoreFoam * 0.85) * uniforms.foamDistanceScale * mix(0.72, 1.18, contactNoise);
+  let boatFoamGain = mix(4.5, 3.2, useSphereCollision);
+  let shoreFoamGain = mix(0.85, 1.9, useSphereCollision);
+  let sdfContactFoam = ((boatRim + wakeFoam) * boatFoamGain + shoreFoam * shoreFoamGain) * uniforms.foamDistanceScale * mix(0.72, 1.18, contactNoise);
   let rawDepthContactFoam = pow(getDepthContactFoam(input.position), uniforms.depthFadeExponent) * uniforms.foamDistanceScale * 2.2;
   let depthContactFoam = mix(rawDepthContactFoam, 0.0, useSphereCollision);
   let distanceFoam = clamp(max(sdfContactFoam, depthContactFoam), 0.0, 1.0);

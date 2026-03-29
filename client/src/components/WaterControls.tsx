@@ -108,12 +108,16 @@ function getInitialValues(): ControlValues {
   (Object.keys(DEFAULT_VALUES) as Array<keyof ControlValues>).forEach((key) => {
     const shortKey = PARAM_KEYS[key];
     const paramVal = params.get(shortKey);
-    const sourceVal = paramVal ?? (stored[key] as number | undefined);
+    const sourceVal = paramVal ?? (stored[key] as any);
     if (sourceVal === undefined || sourceVal === null) return;
 
-    const parsed = Number(sourceVal);
-    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-      next[key] = parsed;
+    if (key === 'waterType') {
+      next[key] = sourceVal as string;
+    } else {
+      const parsed = Number(sourceVal);
+      if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+        (next as any)[key] = parsed;
+      }
     }
   });
 
@@ -228,6 +232,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       cameraDistance,
       cameraHeight,
       cameraAngle,
+      waterType,
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
@@ -420,6 +425,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setCameraDistance(100);
     setCameraHeight(50);
     setCameraAngle(0);
+    setWaterType('gerstnerWaves');
 
     onParameterChange('waveAmplitude', 1.8);
     onParameterChange('waveFrequency', 1.2);
@@ -441,12 +447,17 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('collisionMode', 0);
     onParameterChange('showProxySpheres', 1);
     
+    // Reset shader
+    if (onShaderChange) {
+      onShaderChange('gerstnerWaves');
+    }
+    
     // Compute camera position from orbit formula (angle=0, distance=100, height=50)
     const angle = (0 * Math.PI) / 180;
     const x = ISLAND_X + Math.cos(angle) * 100;
     const z = ISLAND_Z + Math.sin(angle) * 100;
     onCameraChange(x, 50, z);
-  }, [onParameterChange, onCameraChange]);
+  }, [onParameterChange, onCameraChange, onShaderChange]);
 
   const handleShaderChange = useCallback((shaderName: string) => {
     setWaterType(shaderName);

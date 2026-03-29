@@ -45,7 +45,6 @@ export class VisualOcean {
   private depthRenderer: DepthRenderer | null = null;
   private light: DirectionalLight | null = null;
   private shadowGenerator: ShadowGenerator | null = null;
-  private godRays: VolumetricScatteringPostProcess | null = null;
   private boatProxySphere: Mesh | null = null;
   private islandProxySphere: Mesh | null = null;
   private collisionMode: 'glb' | 'spheres' = 'glb';
@@ -68,10 +67,6 @@ export class VisualOcean {
   private islandCenter = new Vector2(22, 10);
   private islandRadius = this.baseIslandRadius;
   private boatStartOffset = new Vector2(-18, -14);
-
-  private cameraAngle: number = 0; // Angle around vertical axis in degrees
-  private cameraDistance: number = 20; // Distance from center
-  private cameraHeight: number = 5; // Height above water
 
   private waveParams = {
     amplitude: 2.6,

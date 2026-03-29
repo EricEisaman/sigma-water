@@ -262,12 +262,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     const val = value[0];
     setWindDirection(val);
     onParameterChange('windDirection', val);
-    // Update camera to follow wind direction
-    const angle = (val * Math.PI) / 180;
-    const x = ISLAND_X + Math.cos(angle) * cameraDistance;
-    const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
-    onCameraChange(x, cameraHeight, z);
-  }, [onParameterChange, onCameraChange, cameraDistance, cameraHeight]);
+  }, [onParameterChange]);
 
   const handleWindSpeedChange = useCallback((value: number[]) => {
     const val = value[0];
@@ -393,8 +388,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     const x = ISLAND_X + Math.cos(angle) * cameraDistance;
     const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
     onCameraChange(x, cameraHeight, z);
-    onParameterChange('cameraAngle', val);
-  }, [onParameterChange, onCameraChange, cameraDistance, cameraHeight]);
+  }, [onCameraChange, cameraDistance, cameraHeight]);
 
   const handleReset = useCallback(() => {
     setWaveAmplitude(1.8);
@@ -439,7 +433,12 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('islandYOffset', 0);
     onParameterChange('collisionMode', 0);
     onParameterChange('showProxySpheres', 1);
-    onCameraChange(70.7, 50, 70.7);
+    
+    // Compute camera position from orbit formula (angle=0, distance=100, height=50)
+    const angle = (0 * Math.PI) / 180;
+    const x = ISLAND_X + Math.cos(angle) * 100;
+    const z = ISLAND_Z + Math.sin(angle) * 100;
+    onCameraChange(x, 50, z);
   }, [onParameterChange, onCameraChange]);
 
   const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera') => {

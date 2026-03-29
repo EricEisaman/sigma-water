@@ -106,7 +106,7 @@ client/
 │   │   ├── ControlPanel.tsx   # Interactive parameter controls
 │   │   └── PerformanceMonitor.tsx  # Real-time stats display
 │   ├── lib/
-│   │   └── WaterScene.ts      # Babylon.js water scene logic
+│   │   └── VisualOcean.ts     # Babylon.js WebGPU/WGSL ocean renderer
 │   ├── App.tsx                # React router setup
 │   ├── main.tsx               # React entry point
 │   └── index.css              # Global styles
@@ -119,7 +119,7 @@ client/
 
 1. **Reduce Wave Frequency** for better performance on lower-end devices
 2. **Lower Camera Speed** to reduce unnecessary calculations
-3. **Adjust Subdivisions** in WaterScene.ts if needed (currently 200x200)
+3. **Adjust mesh/subdivision settings** in VisualOcean.ts if needed
 4. **Monitor FPS** using the Performance Monitor widget
 
 ## Comparison with Three.js Water Pro

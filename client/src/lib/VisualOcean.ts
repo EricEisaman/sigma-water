@@ -444,6 +444,14 @@ fn hash2(p: vec2<f32>) -> f32 {
   return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
 }
 
+fn hash2Vec(p: vec2<f32>) -> vec2<f32> {
+  let q = vec2<f32>(
+    dot(p, vec2<f32>(127.1, 311.7)),
+    dot(p, vec2<f32>(269.5, 183.3))
+  );
+  return fract(sin(q) * 43758.5453);
+}
+
 fn noise2(p: vec2<f32>) -> f32 {
   let i = floor(p);
   let f = fract(p);
@@ -455,6 +463,24 @@ fn noise2(p: vec2<f32>) -> f32 {
   let d = hash2(i + vec2<f32>(1.0, 1.0));
 
   return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn cellularNoise(p: vec2<f32>, t: f32) -> f32 {
+  let cell = floor(p);
+  let local = fract(p);
+  var minDist = 1.0;
+
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2<f32>(f32(x), f32(y));
+      let seed = hash2Vec(cell + neighbor);
+      let animatedSeed = 0.5 + 0.5 * sin(vec2<f32>(t * 0.43, t * 0.37) + 6.2831853 * seed);
+      let delta = neighbor + animatedSeed - local;
+      minDist = min(minDist, dot(delta, delta));
+    }
+  }
+
+  return sqrt(minDist);
 }
 
 fn fbm(p: vec2<f32>) -> f32 {
@@ -559,7 +585,24 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let rawDepthContactFoam = pow(getDepthContactFoam(input.position), uniforms.depthFadeExponent) * uniforms.foamDistanceScale * 2.2;
   let depthContactFoam = mix(rawDepthContactFoam, 0.0, useSphereCollision);
   let distanceFoam = clamp(max(sdfContactFoam, depthContactFoam), 0.0, 1.0);
-  let foam = clamp(max(crestFoam, distanceFoam), 0.0, 1.0) * uniforms.foamIntensity;
+
+  // Cellular breakup gives foam a porous "swiss cheese" structure instead of a flat fade.
+  let windAngle = uniforms.windDirection * 0.01745329251;
+  let flowDir = normalize(vec2<f32>(cos(windAngle), sin(windAngle)));
+  let drift = flowDir * uniforms.time * (0.16 + uniforms.windSpeed * 0.12);
+  let cellLarge = cellularNoise(worldXZ * 0.115 + drift, uniforms.time);
+  let cellSmall = cellularNoise(worldXZ * 0.275 - drift * 1.35 + vec2<f32>(13.1, -7.7), uniforms.time * 1.2);
+  let cellField = clamp((1.0 - cellLarge) * 0.72 + (1.0 - cellSmall) * 0.28, 0.0, 1.0);
+
+  let shoreMask = clamp(max(shoreFoam, rawDepthContactFoam), 0.0, 1.0);
+  let shredThreshold = 0.28 + (1.0 - shoreMask) * 0.56;
+  let foamPattern = smoothstep(shredThreshold - 0.12, shredThreshold + 0.12, cellField);
+  let fizz = smoothstep(0.66, 0.9, 1.0 - cellSmall) * 0.28;
+  let swissCheese = clamp(foamPattern + fizz, 0.0, 1.0);
+
+  let structuredDistanceFoam = distanceFoam * mix(0.32, 1.0, swissCheese);
+  let crestStructure = mix(0.58, 1.0, swissCheese);
+  let foam = clamp(max(crestFoam * crestStructure, structuredDistanceFoam), 0.0, 1.0) * uniforms.foamIntensity;
 
   let c = (sin(input.vWorldPos.x * uniforms.causticScale * 0.12 + uniforms.time * 0.7) * sin(input.vWorldPos.z * uniforms.causticScale * 0.09 + uniforms.time * 0.51)) * 0.5 + 0.5;
   let causticColor = vec3<f32>(0.12, 0.22, 0.28) * c * uniforms.causticIntensity * 0.32;

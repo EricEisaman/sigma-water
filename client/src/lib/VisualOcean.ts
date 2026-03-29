@@ -29,6 +29,7 @@ import {
   TransformNode,
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
+import { ShaderLibrary, initializeShaderLibrary } from './shaders';
 
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
@@ -42,6 +43,8 @@ export class VisualOcean {
   private boatMeshes: AbstractMesh[] = [];
   private islandMeshes: AbstractMesh[] = [];
   private shaderMaterial: ShaderMaterial | null = null;
+  private shaderLibrary: ShaderLibrary | null = null;
+  private currentShaderName: string = 'gerstnerWaves';
   private depthRenderer: DepthRenderer | null = null;
   private light: DirectionalLight | null = null;
   private shadowGenerator: ShadowGenerator | null = null;

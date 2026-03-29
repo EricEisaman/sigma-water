@@ -189,7 +189,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('collisionMode', initialValues.collisionMode);
     onParameterChange('showProxySpheres', initialValues.showProxySpheres);
 
-    const angle = (initialValues.windDirection * Math.PI) / 180;
+    const angle = (initialValues.cameraAngle * Math.PI) / 180;
     const x = ISLAND_X + Math.cos(angle) * initialValues.cameraDistance;
     const z = ISLAND_Z + Math.sin(angle) * initialValues.cameraDistance;
     onCameraChange(x, initialValues.cameraHeight, z);

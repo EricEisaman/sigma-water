@@ -3,6 +3,7 @@
  */
 
 import * as BABYLON from '@babylonjs/core';
+import '@babylonjs/loaders';
 
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
@@ -75,8 +76,7 @@ export class VisualOcean {
       this.setupLighting();
       await this.setupIBLEnvironment();
       await this.createOceanMesh();
-      // await this.createBoat();  // Skip GLSL-based StandardMaterial
-      // await this.createSkyDome();  // Skip GLSL-based StandardMaterial
+      await this.createBoat();
       // await this.setupFoamCompute(); // TODO: Fix compute shader bindings
       this.setupRenderLoop();
 
@@ -123,13 +123,16 @@ export class VisualOcean {
   private async setupIBLEnvironment(): Promise<void> {
     if (!this.scene) throw new Error('Scene not initialized');
     try {
-      // Load local Kiara Dawn 1K EXR - Babylon.js v9 WebGPU supports EXR natively
+      // Load local Kiara Dawn 1K EXR using EXRCubeTexture
       const exrUrl = '/assets/images/kiara_1_dawn_1k.exr';
-      this.scene.environmentTexture = await BABYLON.CubeTexture.CreateFromPrefilteredData(exrUrl, this.scene);
-      this.scene.environmentIntensity = 1.0;
-      console.log('✅ Kiara Dawn 1K EXR loaded from local assets');
+      const envTexture = new BABYLON.EXRCubeTexture(exrUrl, this.scene, 512);
+      this.scene.environmentTexture = envTexture;
+      this.scene.environmentIntensity = 1.2;
+      // Create skybox from the IBL texture (true = PBR skybox)
+      this.scene.createDefaultSkybox(envTexture, true, 5000, 0.3, false);
+      console.log('✅ Kiara Dawn 1K EXR loaded via EXRCubeTexture');
     } catch (e) {
-      console.log('ℹ️ HDRI fallback - using procedural sky', e);
+      console.warn('⚠️ EXR load failed - using solid sky color', e);
     }
   }
 
@@ -320,10 +323,10 @@ fn main(input: OceanFragmentInput) -> @location(0) vec4f {
 
     this.boatMesh.position = new BABYLON.Vector3(0, 2, 0);
 
-    const boatMaterial = new BABYLON.StandardMaterial('boatMaterial', this.scene);
-    boatMaterial.emissiveColor = new BABYLON.Color3(0.85, 0.65, 0.45);
-    boatMaterial.specularColor = new BABYLON.Color3(0.6, 0.6, 0.6);
-    boatMaterial.specularPower = 128;
+    const boatMaterial = new BABYLON.PBRMaterial('boatMaterial', this.scene);
+    boatMaterial.albedoColor = new BABYLON.Color3(0.85, 0.65, 0.45);
+    boatMaterial.metallic = 0.1;
+    boatMaterial.roughness = 0.6;
 
     this.boatMesh.material = boatMaterial;
 
@@ -398,42 +401,38 @@ fn main(input: OceanFragmentInput) -> @location(0) vec4f {
   }
 
   private setupRenderLoop(): void {
-    if (!this.engine || !this.scene || !this.shaderMaterial) throw new Error('Engine, scene, or material not initialized');
+    if (!this.engine || !this.scene) throw new Error('Engine or scene not initialized');
 
-    // Wait for WebGPU shader pipeline to compile before starting render loop
-    // This prevents GLSL fallback attempts on WGSL shaders
-    this.shaderMaterial.onEffectCreatedObservable.add(() => {
-      console.log('✅ WebGPU shader pipeline ready - starting render loop');
-      
-      let lastFrameTime = performance.now();
+    let lastFrameTime = performance.now();
 
-      this.engine!.runRenderLoop(() => {
-        const currentTime = performance.now();
-        const deltaTime = (currentTime - lastFrameTime) / 1000;
-        lastFrameTime = currentTime;
+    this.engine.runRenderLoop(() => {
+      const currentTime = performance.now();
+      const deltaTime = (currentTime - lastFrameTime) / 1000;
+      lastFrameTime = currentTime;
 
-        this.waveParams.time += 0.02;  // Fixed 0.02 per frame for consistent wave animation
-        this.foamSimParams.time += deltaTime;
-        this.foamSimParams.deltaTime = deltaTime;
+      this.waveParams.time += 0.02;
+      this.foamSimParams.time += deltaTime;
+      this.foamSimParams.deltaTime = deltaTime;
 
-        this.updateBoatPhysics();
-        this.updateFoamSimulation();
+      this.updateBoatPhysics();
+      this.updateFoamSimulation();
 
-        if (this.waveParamsBuffer) {
-          this.waveParamsBuffer.updateFloat('time', this.waveParams.time);
-          this.waveParamsBuffer.updateFloat('amplitude', this.waveParams.amplitude);
-          this.waveParamsBuffer.updateFloat('frequency', this.waveParams.frequency);
-          this.waveParamsBuffer.updateFloat('windDir', (this.waveParams.windDirection * Math.PI) / 180);
-          this.waveParamsBuffer.updateFloat('windSpeed', this.waveParams.windSpeed);
-          this.waveParamsBuffer.updateFloat('foamIntensity', this.waveParams.foamIntensity);
-          this.waveParamsBuffer.updateFloat('causticIntensity', this.waveParams.causticIntensity);
-          this.waveParamsBuffer.updateFloat('causticScale', this.waveParams.causticScale);
-          this.waveParamsBuffer.update();
-        }
+      if (this.waveParamsBuffer) {
+        this.waveParamsBuffer.updateFloat('time', this.waveParams.time);
+        this.waveParamsBuffer.updateFloat('amplitude', this.waveParams.amplitude);
+        this.waveParamsBuffer.updateFloat('frequency', this.waveParams.frequency);
+        this.waveParamsBuffer.updateFloat('windDir', (this.waveParams.windDirection * Math.PI) / 180);
+        this.waveParamsBuffer.updateFloat('windSpeed', this.waveParams.windSpeed);
+        this.waveParamsBuffer.updateFloat('foamIntensity', this.waveParams.foamIntensity);
+        this.waveParamsBuffer.updateFloat('causticIntensity', this.waveParams.causticIntensity);
+        this.waveParamsBuffer.updateFloat('causticScale', this.waveParams.causticScale);
+        this.waveParamsBuffer.update();
+      }
 
-        this.scene!.render();
-      });
+      this.scene!.render();
     });
+
+    console.log('✅ Render loop started');
   }
 
   private updateFoamSimulation(): void {

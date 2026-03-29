@@ -1,4 +1,4 @@
-# Sigma Water
+# 🌊 Sigma Water
 
 A high-performance, interactive water rendering demonstration built with **Babylon.js**, recreating the advanced features including realistic wave simulation, dynamic visual effects, and real-time parameter controls.
 

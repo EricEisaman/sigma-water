@@ -64,6 +64,12 @@ export default function Home() {
     }
   };
 
+  const handleTopDownView = () => {
+    if (oceanRef.current) {
+      oceanRef.current.setTopDownView(260);
+    }
+  };
+
   return (
     <div className="w-full h-screen bg-gradient-to-b from-sky-200 via-sky-300 to-blue-400 overflow-hidden flex flex-col relative">
       {/* Canvas */}
@@ -113,11 +119,6 @@ export default function Home() {
             🌊 Sigma Water
           </h1>
           <p className="text-sm text-gray-600 mt-1 font-medium">SIGGRAPH-Grade Ocean Renderer</p>
-          <div className="text-xs text-gray-600 mt-3 space-y-1 font-mono">
-            <p>🎮 <span className="text-gray-700">Mouse drag: Look around</span></p>
-            <p>⌨️ <span className="text-gray-700">Arrow keys: Move</span> | <span className="text-gray-700">Shift: Speed boost</span></p>
-            <p>✨ <span className="text-gray-700">512×512 Mesh</span> | <span className="text-gray-700">Gerstner Waves</span></p>
-          </div>
           <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">
             <p>📊 Features: Caustics • Foam • PBR Lighting • IBL Sky • Boat Physics</p>
           </div>
@@ -138,6 +139,7 @@ export default function Home() {
         <WaterControls
           onParameterChange={handleParameterChange}
           onCameraChange={handleCameraChange}
+          onTopDownView={handleTopDownView}
         />
       )}
 

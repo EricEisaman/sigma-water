@@ -3,12 +3,19 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Settings2, Eye, Wind, Boxes } from 'lucide-react';
+import { 
+  WaterType, 
+  WATER_TYPES, 
+  parseWaterType, 
+  serializeWaterType,
+  getWaterTypeById 
+} from '@/lib/types/WaterTypeSystem';
 
 interface WaterControlsProps {
   onParameterChange: (key: string, value: number) => void;
   onCameraChange: (x: number, y: number, z: number) => void;
   onTopDownView: () => void;
-  onShaderChange?: (shaderName: string) => void;
+  onShaderChange?: (waterType: WaterType) => void;
 }
 
 type ControlValues = {
@@ -34,7 +41,7 @@ type ControlValues = {
   cameraDistance: number;
   cameraHeight: number;
   cameraAngle: number;
-  waterType: string;
+  waterType: WaterType;
 };
 
 const STORAGE_KEY = 'sigma-water-controls-v1';
@@ -62,7 +69,7 @@ const DEFAULT_VALUES: ControlValues = {
   cameraDistance: 100,
   cameraHeight: 50,
   cameraAngle: 0,
-  waterType: 'gerstnerWaves',
+  waterType: { type: 'gerstnerWaves' },
 };
 
 const PARAM_KEYS: Record<keyof ControlValues, string> = {
@@ -91,6 +98,8 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   waterType: 'wt',
 };
 
+
+
 function getInitialValues(): ControlValues {
   if (typeof window === 'undefined') return DEFAULT_VALUES;
 
@@ -112,7 +121,7 @@ function getInitialValues(): ControlValues {
     if (sourceVal === undefined || sourceVal === null) return;
 
     if (key === 'waterType') {
-      next[key] = sourceVal as string;
+      next[key] = parseWaterType(String(sourceVal));
     } else {
       const parsed = Number(sourceVal);
       if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
@@ -239,7 +248,11 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
     const params = new URLSearchParams(window.location.search);
     (Object.keys(values) as Array<keyof ControlValues>).forEach((key) => {
-      params.set(PARAM_KEYS[key], String(values[key]));
+      if (key === 'waterType') {
+        params.set(PARAM_KEYS[key], serializeWaterType(values[key]));
+      } else {
+        params.set(PARAM_KEYS[key], String(values[key]));
+      }
     });
 
     const query = params.toString();
@@ -268,6 +281,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraDistance,
     cameraHeight,
     cameraAngle,
+    waterType,
   ]);
 
   const handleWindDirectionChange = useCallback((value: number[]) => {
@@ -425,7 +439,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setCameraDistance(100);
     setCameraHeight(50);
     setCameraAngle(0);
-    setWaterType('gerstnerWaves');
+    const defaultWaterType = { type: 'gerstnerWaves' as const };
+    setWaterType(defaultWaterType);
 
     onParameterChange('waveAmplitude', 1.8);
     onParameterChange('waveFrequency', 1.2);
@@ -449,7 +464,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     
     // Reset shader
     if (onShaderChange) {
-      onShaderChange('gerstnerWaves');
+      onShaderChange(defaultWaterType);
     }
     
     // Compute camera position from orbit formula (angle=0, distance=100, height=50)
@@ -460,9 +475,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   }, [onParameterChange, onCameraChange, onShaderChange]);
 
   const handleShaderChange = useCallback((shaderName: string) => {
-    setWaterType(shaderName);
+    const newWaterType = parseWaterType(shaderName);
+    setWaterType(newWaterType);
     if (onShaderChange) {
-      onShaderChange(shaderName);
+      onShaderChange(newWaterType);
     }
   }, [onShaderChange]);
 
@@ -509,18 +525,33 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
               <div className="space-y-2 pl-2">
                 <label className="text-sm font-medium text-slate-300">Shader Material</label>
                 <select
-                  value={waterType}
+                  value={serializeWaterType(waterType)}
                   onChange={(e) => handleShaderChange(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-white text-sm focus:outline-none focus:border-cyan-400/50 transition-colors"
                 >
-                  <option value="gerstnerWaves">Gerstner Waves (High Performance)</option>
-                  <option value="oceanWaves">Ocean Waves (Procedural)</option>
+                  {WATER_TYPES.map((wt) => (
+                    <option key={wt.id} value={wt.id}>
+                      {wt.displayName}
+                    </option>
+                  ))}
                 </select>
                 <p className="text-xs text-slate-400 mt-1">
-                  {waterType === 'gerstnerWaves'
-                    ? 'High-performance wave simulation with dynamic foam and caustics'
-                    : 'Multi-octave procedural ocean with advanced normal calculation'}
+                  {getWaterTypeById(serializeWaterType(waterType)).description}
                 </p>
+                <div className="text-xs text-slate-500 mt-2 space-y-1 bg-slate-800/30 rounded px-2 py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span>Foam Support:</span>
+                    <span className={getWaterTypeById(serializeWaterType(waterType)).supportsFoam ? 'text-green-400' : 'text-slate-500'}>
+                      {getWaterTypeById(serializeWaterType(waterType)).supportsFoam ? '✓' : '✗'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>Caustics Support:</span>
+                    <span className={getWaterTypeById(serializeWaterType(waterType)).supportsCaustics ? 'text-green-400' : 'text-slate-500'}>
+                      {getWaterTypeById(serializeWaterType(waterType)).supportsCaustics ? '✓' : '✗'}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>

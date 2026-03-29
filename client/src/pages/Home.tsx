@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { VisualOcean } from "@/lib/VisualOcean";
 import { WaterControls } from "@/components/WaterControls";
+import { WaterType, serializeWaterType } from "@/lib/types/WaterTypeSystem";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -70,9 +71,9 @@ export default function Home() {
     }
   };
 
-  const handleShaderChange = (shaderName: string) => {
+  const handleShaderChange = (waterType: WaterType) => {
     if (oceanRef.current) {
-      oceanRef.current.switchShader(shaderName);
+      oceanRef.current.switchShader(serializeWaterType(waterType));
     }
   };
 

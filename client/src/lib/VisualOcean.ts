@@ -1348,9 +1348,83 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   }
 
   public switchShader(shaderName: string): void {
-    console.log(`🎨 Switching shader to: ${shaderName}`);
-    // Placeholder for shader switching logic
-    // This will be implemented when shader library is integrated
-    console.warn('Shader switching not yet implemented');
+    if (!this.oceanMesh || !this.scene) {
+      console.warn('❌ Cannot switch shader: ocean mesh or scene not initialized');
+      return;
+    }
+
+    if (shaderName === this.currentShaderName) {
+      console.log(`ℹ️ Shader already set to: ${shaderName}`);
+      return;
+    }
+
+    try {
+      console.log(`🎨 Switching shader to: ${shaderName}`);
+
+      // Initialize shader library if needed
+      if (!this.shaderLibrary) {
+        this.shaderLibrary = initializeShaderLibrary(this.scene);
+      }
+
+      // Get the new shader from the library
+      const newShader = this.shaderLibrary.applyShader(shaderName, this.oceanMesh);
+      
+      if (!newShader) {
+        console.error(`❌ Failed to apply shader: ${shaderName}`);
+        return;
+      }
+
+      // Update the reference to the current shader material
+      this.shaderMaterial = newShader as ShaderMaterial;
+      this.currentShaderName = shaderName;
+
+      // Restore all uniform state to the new shader
+      this.restoreShaderUniforms();
+
+      console.log(`✅ Shader switched successfully to: ${shaderName}`);
+    } catch (error) {
+      console.error(`❌ Error switching shader: ${error}`);
+    }
+  }
+
+  private restoreShaderUniforms(): void {
+    if (!this.shaderMaterial) return;
+
+    // Restore all wave parameters
+    this.shaderMaterial.setFloat('time', this.waveParams.time);
+    this.shaderMaterial.setFloat('amplitude', this.waveParams.amplitude);
+    this.shaderMaterial.setFloat('frequency', this.waveParams.frequency * 0.08);
+    this.shaderMaterial.setFloat('windDirection', this.waveParams.windDirection);
+    this.shaderMaterial.setFloat('windSpeed', this.waveParams.windSpeed);
+    this.shaderMaterial.setFloat('foamIntensity', this.waveParams.foamIntensity);
+    this.shaderMaterial.setFloat('causticIntensity', this.waveParams.causticIntensity);
+    this.shaderMaterial.setFloat('causticScale', this.waveParams.causticScale);
+    this.shaderMaterial.setVector2('boatPos', this.boatMesh ? new Vector2(this.boatMesh.position.x, this.boatMesh.position.z) : this.boatContactPos);
+    this.shaderMaterial.setVector2('islandCenter', this.islandCenter);
+    this.shaderMaterial.setFloat('islandRadius', this.islandRadius);
+    this.shaderMaterial.setFloat('foamDistanceScale', this.waveParams.foamDistanceScale);
+    this.shaderMaterial.setFloat('foamWidth', this.waveParams.foamWidth);
+    this.shaderMaterial.setFloat('foamNoiseFactor', this.waveParams.foamNoiseFactor);
+    this.shaderMaterial.setFloat('foamCellScale', this.waveParams.foamCellScale);
+    this.shaderMaterial.setFloat('foamShredSlope', this.waveParams.foamShredSlope);
+    this.shaderMaterial.setFloat('foamFizzWeight', this.waveParams.foamFizzWeight);
+    this.shaderMaterial.setFloat('boatFoamRadius', this.boatFoamRadius);
+    this.shaderMaterial.setFloat('wakeWidth', this.wakeWidth);
+    this.shaderMaterial.setFloat('cameraNear', this.camera?.minZ ?? 1.0);
+    this.shaderMaterial.setFloat('cameraFar', this.camera?.maxZ ?? 10000.0);
+    this.shaderMaterial.setFloat('depthFadeDistance', this.waveParams.depthFadeDistance);
+    this.shaderMaterial.setFloat('depthFadeExponent', this.waveParams.depthFadeExponent);
+    this.shaderMaterial.setFloat('collisionMode', this.collisionMode === 'spheres' ? 1 : 0);
+    this.shaderMaterial.setFloat('showProxySpheres', this.showProxySpheres ? 1 : 0);
+    this.shaderMaterial.setVector3('boatSphereCenter', this.boatProxySphere?.getAbsolutePosition() ?? this.boatMesh?.getAbsolutePosition() ?? new Vector3(this.boatContactPos.x, this.waveParams.boatYOffset, this.boatContactPos.y));
+    this.shaderMaterial.setFloat('boatSphereRadius', this.boatFoamRadius);
+    this.shaderMaterial.setFloat('boatSphereCrossRadius', this.boatFoamRadius);
+    this.shaderMaterial.setVector3('islandSphereCenter', this.islandProxySphere?.getAbsolutePosition() ?? this.islandMesh?.getAbsolutePosition() ?? new Vector3(this.islandCenter.x, this.waveParams.islandYOffset, this.islandCenter.y));
+    this.shaderMaterial.setFloat('islandSphereRadius', this.islandRadius);
+    this.shaderMaterial.setFloat('islandSphereCrossRadius', this.islandRadius);
+    
+    if (this.depthRenderer) {
+      this.shaderMaterial.setTexture('sceneDepth', this.depthRenderer.getDepthMap());
+    }
   }
 }

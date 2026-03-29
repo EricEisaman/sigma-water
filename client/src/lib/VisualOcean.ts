@@ -887,9 +887,6 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
 
       this.waveParams.time += 0.02;
 
-      // Update camera position based on angle
-      this.updateCameraPosition();
-
       this.updateBoatPhysics();
       this.syncCollisionProxies();
 

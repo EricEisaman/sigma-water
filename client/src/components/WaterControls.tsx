@@ -18,6 +18,9 @@ type ControlValues = {
   foamIntensity: number;
   foamWidth: number;
   foamNoiseFactor: number;
+  foamCellScale: number;
+  foamShredSlope: number;
+  foamFizzWeight: number;
   causticIntensity: number;
   depthFadeDistance: number;
   depthFadeExponent: number;
@@ -41,6 +44,9 @@ const DEFAULT_VALUES: ControlValues = {
   foamIntensity: 0.7,
   foamWidth: 1.0,
   foamNoiseFactor: 0.45,
+  foamCellScale: 0.115,
+  foamShredSlope: 0.56,
+  foamFizzWeight: 0.28,
   causticIntensity: 0.85,
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
@@ -62,6 +68,9 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   foamIntensity: 'fi',
   foamWidth: 'fw',
   foamNoiseFactor: 'fn',
+  foamCellScale: 'fcs',
+  foamShredSlope: 'fss',
+  foamFizzWeight: 'ffz',
   causticIntensity: 'ci',
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
@@ -117,6 +126,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [foamIntensity, setFoamIntensity] = useState(initialValues.foamIntensity);
   const [foamWidth, setFoamWidth] = useState(initialValues.foamWidth);
   const [foamNoiseFactor, setFoamNoiseFactor] = useState(initialValues.foamNoiseFactor);
+  const [foamCellScale, setFoamCellScale] = useState(initialValues.foamCellScale);
+  const [foamShredSlope, setFoamShredSlope] = useState(initialValues.foamShredSlope);
+  const [foamFizzWeight, setFoamFizzWeight] = useState(initialValues.foamFizzWeight);
   const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
@@ -160,6 +172,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamIntensity', initialValues.foamIntensity);
     onParameterChange('foamWidth', initialValues.foamWidth);
     onParameterChange('foamNoiseFactor', initialValues.foamNoiseFactor);
+    onParameterChange('foamCellScale', initialValues.foamCellScale);
+    onParameterChange('foamShredSlope', initialValues.foamShredSlope);
+    onParameterChange('foamFizzWeight', initialValues.foamFizzWeight);
     onParameterChange('causticIntensity', initialValues.causticIntensity);
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
@@ -187,6 +202,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       foamIntensity,
       foamWidth,
       foamNoiseFactor,
+      foamCellScale,
+      foamShredSlope,
+      foamFizzWeight,
       causticIntensity,
       depthFadeDistance,
       depthFadeExponent,
@@ -218,6 +236,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     foamIntensity,
     foamWidth,
     foamNoiseFactor,
+    foamCellScale,
+    foamShredSlope,
+    foamFizzWeight,
     causticIntensity,
     depthFadeDistance,
     depthFadeExponent,
@@ -264,6 +285,24 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     const val = value[0];
     setFoamNoiseFactor(val);
     onParameterChange('foamNoiseFactor', val);
+  }, [onParameterChange]);
+
+  const handleFoamCellScaleChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setFoamCellScale(val);
+    onParameterChange('foamCellScale', val);
+  }, [onParameterChange]);
+
+  const handleFoamShredSlopeChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setFoamShredSlope(val);
+    onParameterChange('foamShredSlope', val);
+  }, [onParameterChange]);
+
+  const handleFoamFizzWeightChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setFoamFizzWeight(val);
+    onParameterChange('foamFizzWeight', val);
   }, [onParameterChange]);
 
   const handleCausticIntensityChange = useCallback((value: number[]) => {
@@ -348,6 +387,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setFoamIntensity(0.7);
     setFoamWidth(1.0);
     setFoamNoiseFactor(0.45);
+    setFoamCellScale(0.115);
+    setFoamShredSlope(0.56);
+    setFoamFizzWeight(0.28);
     setCausticIntensity(0.85);
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
@@ -367,6 +409,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamIntensity', 0.7);
     onParameterChange('foamWidth', 1.0);
     onParameterChange('foamNoiseFactor', 0.45);
+    onParameterChange('foamCellScale', 0.115);
+    onParameterChange('foamShredSlope', 0.56);
+    onParameterChange('foamFizzWeight', 0.28);
     onParameterChange('causticIntensity', 0.85);
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
@@ -530,6 +575,48 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   <Slider
                     value={[foamNoiseFactor]}
                     onValueChange={(v) => handleFoamNoiseFactorChange(v)}
+                    min={0.0}
+                    max={1.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Cell Size: <span className="text-purple-400 font-bold">{foamCellScale.toFixed(3)}</span>
+                  </label>
+                  <Slider
+                    value={[foamCellScale]}
+                    onValueChange={(v) => handleFoamCellScaleChange(v)}
+                    min={0.02}
+                    max={0.5}
+                    step={0.005}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Foam Shred: <span className="text-purple-400 font-bold">{foamShredSlope.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[foamShredSlope]}
+                    onValueChange={(v) => handleFoamShredSlopeChange(v)}
+                    min={0.0}
+                    max={1.2}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Foam Fizz: <span className="text-purple-400 font-bold">{foamFizzWeight.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[foamFizzWeight]}
+                    onValueChange={(v) => handleFoamFizzWeightChange(v)}
                     min={0.0}
                     max={1.0}
                     step={0.05}

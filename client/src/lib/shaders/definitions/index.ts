@@ -8,6 +8,10 @@
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { gerstnerWavesDefinition } from './gerstnerWaves';
 import { oceanWavesDefinition } from './oceanWaves';
+import { tropicalWavesDefinition } from './tropicalWaves';
+import { stormyWavesDefinition } from './stormyWaves';
+import { glassyWavesDefinition } from './glassyWaves';
+import { toonWaterDefinition } from './toonWater';
 
 /**
  * All available water type shaders
@@ -16,12 +20,22 @@ import { oceanWavesDefinition } from './oceanWaves';
 export const SHADER_DEFINITIONS: ShaderRegistryEntry[] = [
   gerstnerWavesDefinition,
   oceanWavesDefinition,
+  tropicalWavesDefinition,
+  stormyWavesDefinition,
+  glassyWavesDefinition,
+  toonWaterDefinition,
   // Future shaders:
-  // tropicalWavesDefinition,
-  // stormyWavesDefinition,
-  // glassyWavesDefinition,
   // foamyWavesDefinition,
+  // glowingWavesDefinition,
+  // crystallineWavesDefinition,
   // ... (up to 20+)
 ];
 
-export { gerstnerWavesDefinition, oceanWavesDefinition };
+export { 
+  gerstnerWavesDefinition, 
+  oceanWavesDefinition,
+  tropicalWavesDefinition,
+  stormyWavesDefinition,
+  glassyWavesDefinition,
+  toonWaterDefinition,
+};

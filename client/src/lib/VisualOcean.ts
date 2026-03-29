@@ -27,6 +27,7 @@ import {
   DepthRenderer,
   StandardMaterial,
   TransformNode,
+  VolumetricScatteringPostProcess,
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
 
@@ -45,6 +46,7 @@ export class VisualOcean {
   private depthRenderer: DepthRenderer | null = null;
   private light: DirectionalLight | null = null;
   private shadowGenerator: ShadowGenerator | null = null;
+  private godRays: VolumetricScatteringPostProcess | null = null;
   private boatProxySphere: Mesh | null = null;
   private islandProxySphere: Mesh | null = null;
   private collisionMode: 'glb' | 'spheres' = 'glb';
@@ -216,7 +218,45 @@ export class VisualOcean {
     this.shadowGenerator.useBlurExponentialShadowMap = true;
     this.shadowGenerator.blurKernel = 32;
 
+    // Add God Rays (Volumetric Scattering)
+    this.setupGodRays();
+
     console.log('✅ Lighting configured');
+  }
+
+  private setupGodRays(): void {
+    if (!this.scene || !this.camera || !this.light) return;
+
+    // Create a mesh to serve as the sun source for god rays
+    const sunSource = MeshBuilder.CreateSphere('sunSource', { diameter: 100, segments: 16 }, this.scene);
+    const sunMaterial = new StandardMaterial('sunMaterial', this.scene);
+    sunMaterial.emissiveColor = new Color3(1, 1, 0.8);
+    sunMaterial.disableLighting = true;
+    sunSource.material = sunMaterial;
+
+    // Position the sun source far away in the direction of the light
+    const sunDirection = this.light.direction.scale(-1).normalize();
+    sunSource.position = sunDirection.scale(5000);
+
+    // Initialize the Volumetric Scattering post-process
+    this.godRays = new VolumetricScatteringPostProcess(
+      'godRays',
+      1.0,
+      this.camera,
+      sunSource,
+      50,
+      VolumetricScatteringPostProcess.BILINEAR_SAMPLINGMODE,
+      this.engine!,
+      false
+    );
+
+    // Fine-tune the god rays parameters for a realistic look
+    this.godRays.exposure = 0.25;
+    this.godRays.decay = 0.96;
+    this.godRays.weight = 0.6;
+    this.godRays.density = 1.0;
+
+    console.log('✅ God rays configured');
   }
 
   private async setupIBLEnvironment(): Promise<void> {

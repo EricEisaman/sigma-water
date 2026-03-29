@@ -388,8 +388,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCameraAngleChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraAngle(val);
+    // Rotate camera around island center based on angle
+    const angle = (val * Math.PI) / 180;
+    const x = ISLAND_X + Math.cos(angle) * cameraDistance;
+    const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
+    onCameraChange(x, cameraHeight, z);
     onParameterChange('cameraAngle', val);
-  }, [onParameterChange]);
+  }, [onParameterChange, onCameraChange, cameraDistance, cameraHeight]);
 
   const handleReset = useCallback(() => {
     setWaveAmplitude(1.8);

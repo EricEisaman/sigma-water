@@ -29,7 +29,8 @@ import {
   TransformNode,
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
-import { ShaderLibrary, initializeShaderLibrary } from './shaders';
+import { ShaderRegistry } from './shaders/ShaderRegistry';
+import { SHADER_DEFINITIONS } from './shaders/definitions';
 
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
@@ -43,7 +44,7 @@ export class VisualOcean {
   private boatMeshes: AbstractMesh[] = [];
   private islandMeshes: AbstractMesh[] = [];
   private shaderMaterial: ShaderMaterial | null = null;
-  private shaderLibrary: ShaderLibrary | null = null;
+  private shaderRegistry: ShaderRegistry | null = null;
   private currentShaderName: string = 'gerstnerWaves';
   private depthRenderer: DepthRenderer | null = null;
   private light: DirectionalLight | null = null;
@@ -137,6 +138,7 @@ export class VisualOcean {
       this.setupCamera();
       this.setupLighting();
       await this.setupIBLEnvironment();
+      this.initializeShaderRegistry();
       await this.createOceanMesh();
       await this.createBoat();
       await this.createIsland();
@@ -221,6 +223,23 @@ export class VisualOcean {
 
     console.log('✅ Lighting configured');
   }
+
+  private initializeShaderRegistry(): void {
+    if (!this.scene) throw new Error('Scene not initialized');
+    
+    try {
+      console.log('📝 Initializing shader registry...');
+      
+      this.shaderRegistry = new ShaderRegistry(this.scene);
+      this.shaderRegistry.registerBatch(SHADER_DEFINITIONS);
+      
+      console.log(`✅ Shader registry initialized with ${this.shaderRegistry.getCount()} shaders`);
+    } catch (error) {
+      console.error('❌ Failed to initialize shader registry:', error);
+      throw error;
+    }
+  }
+
 
 
 
@@ -1585,9 +1604,9 @@ fn main(@location(0) vWorldPos: vec3<f32>,
   }
 
 
-    public switchShader(shaderName: string): void {
-    if (!this.oceanMesh || !this.scene) {
-      console.warn('❌ Cannot switch shader: ocean mesh or scene not initialized');
+  public switchShader(shaderName: string): void {
+    if (!this.oceanMesh || !this.scene || !this.shaderRegistry) {
+      console.warn('❌ Cannot switch shader: ocean mesh, scene, or registry not initialized');
       return;
     }
 
@@ -1599,44 +1618,16 @@ fn main(@location(0) vWorldPos: vec3<f32>,
     try {
       console.log(`🎨 Switching shader to: ${shaderName}`);
 
-      // Initialize shader library if needed
-      if (!this.shaderLibrary) {
-        this.shaderLibrary = initializeShaderLibrary(this.scene);
-      }
+      // Switch shader via registry
+      this.shaderRegistry.switchTo(shaderName, this.oceanMesh, {
+        fadeDuration: 300,
+        preserveUniforms: true,
+      });
 
-      // Clean up old shader material before switching
-      const oldMaterial = this.oceanMesh.material as ShaderMaterial | null;
-      if (oldMaterial && oldMaterial !== this.shaderMaterial) {
-        console.log('🧹 Disposing old shader material');
-        oldMaterial.dispose();
-      }
-
-      // Get shader instance from library
-      const shaderInstance = this.shaderLibrary.getShader(shaderName);
-      if (!shaderInstance) {
-        console.error(`❌ Shader not found in library: ${shaderName}`);
-        return;
-      }
-
-      // Clone the shader material to create independent instance
-      const clonedMaterial = shaderInstance.material.clone(`${shaderName}_instance_${Date.now()}`);
-      if (!clonedMaterial) {
-        console.error(`❌ Failed to clone shader material: ${shaderName}`);
-        return;
-      }
-
-      // Apply cloned material to ocean mesh
-      this.oceanMesh.material = clonedMaterial;
-      this.shaderMaterial = clonedMaterial as ShaderMaterial;
       this.currentShaderName = shaderName;
+      this.shaderMaterial = this.shaderRegistry.getManager().getActiveContext()?.getMaterial() || null;
 
-      // Configure material properties for ocean rendering
-      this.shaderMaterial.transparencyMode = Material.MATERIAL_OPAQUE;
-      this.shaderMaterial.alpha = 1.0;
-      this.shaderMaterial.backFaceCulling = false;
-      this.shaderMaterial.wireframe = false;
-
-      // Restore all uniform state to the new shader
+      // Restore shader-specific uniforms
       this.restoreShaderUniforms();
 
       console.log(`✅ Shader switched successfully to: ${shaderName}`);

@@ -219,6 +219,8 @@ export class VisualOcean {
     console.log('✅ Lighting configured');
   }
 
+
+
   private async setupIBLEnvironment(): Promise<void> {
     if (!this.scene) throw new Error('Scene not initialized');
     try {
@@ -1205,7 +1207,11 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       this.updateContactBoundaries();
       this.syncCollisionProxies();
     }
+
+
   }
+
+
 
   private computeModelScaleToTarget(meshes: AbstractMesh[], targetSpan: number): number {
     const bounds = this.getCombinedWorldBounds(meshes);

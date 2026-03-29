@@ -17,14 +17,14 @@ export class VisualOcean {
   private light: BABYLON.DirectionalLight | null = null;
   private shadowGenerator: BABYLON.ShadowGenerator | null = null;
   private initialized = false;
-  private islandCenter = new BABYLON.Vector2(180, -120);
-  private islandRadius = 64;
+  private islandCenter = new BABYLON.Vector2(96, 58);
+  private islandRadius = 52;
 
   private waveParams = {
-    amplitude: 2.0,
-    frequency: 1.2,
-    windDirection: 45,
-    windSpeed: 0.6,
+    amplitude: 2.6,
+    frequency: 1.35,
+    windDirection: 38,
+    windSpeed: 0.72,
     foamIntensity: 0.7,
     causticIntensity: 0.85,
     causticScale: 2.5,
@@ -79,7 +79,7 @@ export class VisualOcean {
   private setupCamera(): void {
     if (!this.scene) throw new Error('Scene not initialized');
     
-    this.camera = new BABYLON.UniversalCamera('camera', new BABYLON.Vector3(0, 100, 150));
+    this.camera = new BABYLON.UniversalCamera('camera', new BABYLON.Vector3(-30, 86, 190));
     this.camera.attachControl(this.canvas, true);
     this.camera.speed = 50;
     this.camera.angularSensibility = 1000;
@@ -88,7 +88,7 @@ export class VisualOcean {
     this.camera.maxZ = 10000;
 
     this.scene.activeCamera = this.camera;
-    this.camera.setTarget(new BABYLON.Vector3(0, 0, 0));
+    this.camera.setTarget(new BABYLON.Vector3(52, 4, 42));
     console.log('✅ Camera configured');
   }
 
@@ -168,26 +168,68 @@ varying vUv : vec2<f32>;
 varying vWaveHeight : f32;
 varying vFoamMask : f32;
 
+fn hash2(p: vec2<f32>) -> f32 {
+  return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn noise2(p: vec2<f32>) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+
+  let a = hash2(i + vec2<f32>(0.0, 0.0));
+  let b = hash2(i + vec2<f32>(1.0, 0.0));
+  let c = hash2(i + vec2<f32>(0.0, 1.0));
+  let d = hash2(i + vec2<f32>(1.0, 1.0));
+
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+fn fbm(p: vec2<f32>) -> f32 {
+  var value = 0.0;
+  var amp = 0.5;
+  var freq = 1.0;
+
+  for (var i = 0; i < 4; i = i + 1) {
+    value += noise2(p * freq) * amp;
+    freq *= 2.02;
+    amp *= 0.53;
+  }
+
+  return value;
+}
+
 fn waveHeight(xz: vec2<f32>, t: f32) -> f32 {
   let windAngle = uniforms.windDirection * 0.01745329251;
-  let dir0 = normalize(vec2<f32>(cos(windAngle), sin(windAngle)));
-  let dir1 = normalize(vec2<f32>(-dir0.y, dir0.x));
-  let dir2 = normalize(dir0 + dir1 * 0.6);
+  let baseDir = normalize(vec2<f32>(cos(windAngle), sin(windAngle)));
+  let crossDir = normalize(vec2<f32>(-baseDir.y, baseDir.x));
+  let dir0 = baseDir;
+  let dir1 = normalize(baseDir * 0.78 + crossDir * 0.62);
+  let dir2 = normalize(baseDir * 0.4 - crossDir * 0.92);
+  let dir3 = normalize(baseDir * 0.95 - crossDir * 0.3);
 
-  let speed = 0.65 + uniforms.windSpeed * 1.35;
+  let speed = 0.55 + uniforms.windSpeed * 1.75;
   let f0 = uniforms.frequency;
-  let f1 = uniforms.frequency * 1.87;
-  let f2 = uniforms.frequency * 3.41;
+  let f1 = uniforms.frequency * 1.62;
+  let f2 = uniforms.frequency * 2.64;
+  let f3 = uniforms.frequency * 3.85;
+
+  let a0 = uniforms.amplitude * 0.56;
+  let a1 = uniforms.amplitude * 0.3;
+  let a2 = uniforms.amplitude * 0.2;
+  let a3 = uniforms.amplitude * 0.1;
 
   let p0 = dot(xz, dir0) * f0 + t * speed;
-  let p1 = dot(xz, dir1) * f1 + t * speed * 1.41;
-  let p2 = dot(xz, dir2) * f2 + t * speed * 0.73;
+  let p1 = dot(xz, dir1) * f1 + t * speed * 1.17;
+  let p2 = dot(xz, dir2) * f2 + t * speed * 0.87;
+  let p3 = dot(xz, dir3) * f3 + t * speed * 1.53;
 
-  let a0 = uniforms.amplitude;
-  let a1 = uniforms.amplitude * 0.45;
-  let a2 = uniforms.amplitude * 0.2;
+  let gerstner = sin(p0) * a0 + sin(p1) * a1 + sin(p2) * a2 + sin(p3) * a3;
+  let lowNoise = fbm(xz * 0.012 + vec2<f32>(t * 0.07, -t * 0.05));
+  let highNoise = fbm(xz * 0.04 + vec2<f32>(-t * 0.2, t * 0.15));
+  let noiseTerm = (lowNoise - 0.5) * uniforms.amplitude * 0.38 + (highNoise - 0.5) * uniforms.amplitude * 0.18;
 
-  return sin(p0) * a0 + sin(p1) * a1 + sin(p2) * a2;
+  return gerstner + noiseTerm;
 }
 
 @vertex
@@ -265,9 +307,10 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
   let backScatter = pow(max(dot(-viewDir, lightDir), 0.0), 4.0) * clamp(input.vWaveHeight * 0.08 + 0.5, 0.0, 1.0);
   let sss = vec3<f32>(0.11, 0.42, 0.49) * backScatter * 0.35;
 
-  let ripple = sin(input.vUv.x * 190.0 + uniforms.time * 3.2) * sin(input.vUv.y * 170.0 - uniforms.time * 2.7);
-  let foamNoise = ripple * 0.5 + 0.5;
-  let foamMask = clamp(input.vFoamMask * 1.35 + foamNoise * 0.22, 0.0, 1.0);
+  let rippleA = sin(input.vWorldPos.x * 0.16 + uniforms.time * 1.9) * sin(input.vWorldPos.z * 0.19 - uniforms.time * 1.7);
+  let rippleB = sin((input.vWorldPos.x + input.vWorldPos.z) * 0.11 - uniforms.time * 2.3);
+  let foamNoise = rippleA * 0.35 + rippleB * 0.25 + 0.55;
+  let foamMask = clamp(input.vFoamMask * 1.45 + foamNoise * 0.26, 0.0, 1.0);
 
   // Distance-field foam around dynamic boat hull and static island shoreline.
   let worldXZ = input.vWorldPos.xz;
@@ -366,17 +409,18 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
     if (!this.scene) throw new Error('Scene not initialized');
 
     this.boatMesh = BABYLON.MeshBuilder.CreateBox('boat', {
-      width: 12,
-      height: 6,
-      depth: 24,
+      width: 16,
+      height: 7.5,
+      depth: 32,
     }, this.scene);
 
-    this.boatMesh.position = new BABYLON.Vector3(0, 2, 0);
+    this.boatMesh.position = new BABYLON.Vector3(28, 3.5, 26);
 
     const boatMaterial = new BABYLON.PBRMaterial('boatMaterial', this.scene);
-    boatMaterial.albedoColor = new BABYLON.Color3(0.85, 0.65, 0.45);
-    boatMaterial.metallic = 0.1;
-    boatMaterial.roughness = 0.6;
+    boatMaterial.albedoColor = new BABYLON.Color3(0.88, 0.44, 0.24);
+    boatMaterial.emissiveColor = new BABYLON.Color3(0.08, 0.03, 0.01);
+    boatMaterial.metallic = 0.08;
+    boatMaterial.roughness = 0.52;
 
     this.boatMesh.material = boatMaterial;
 
@@ -397,11 +441,11 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
       tessellation: 32,
     }, this.scene);
 
-    this.islandMesh.position = new BABYLON.Vector3(this.islandCenter.x, 6, this.islandCenter.y);
+    this.islandMesh.position = new BABYLON.Vector3(this.islandCenter.x, 9, this.islandCenter.y);
     this.islandMesh.receiveShadows = true;
 
     const islandMaterial = new BABYLON.PBRMaterial('islandMaterial', this.scene);
-    islandMaterial.albedoColor = new BABYLON.Color3(0.38, 0.34, 0.28);
+    islandMaterial.albedoColor = new BABYLON.Color3(0.47, 0.39, 0.3);
     islandMaterial.metallic = 0.0;
     islandMaterial.roughness = 0.95;
     this.islandMesh.material = islandMaterial;
@@ -489,28 +533,81 @@ fn main(input : FragmentInputs) -> FragmentOutputs {
 
   private sampleWaveAt(x: number, z: number, t: number): number {
     const angle = (this.waveParams.windDirection * Math.PI) / 180;
-    const dir0x = Math.cos(angle);
-    const dir0z = Math.sin(angle);
-    const dir1x = -dir0z;
-    const dir1z = dir0x;
-    const dir2x = dir0x + dir1x * 0.6;
-    const dir2z = dir0z + dir1z * 0.6;
-    const dir2Len = Math.hypot(dir2x, dir2z) || 1;
+    const baseDirX = Math.cos(angle);
+    const baseDirZ = Math.sin(angle);
+    const crossX = -baseDirZ;
+    const crossZ = baseDirX;
 
-    const speed = 0.65 + this.waveParams.windSpeed * 1.35;
+    const dir0 = this.normalize2(baseDirX, baseDirZ);
+    const dir1 = this.normalize2(baseDirX * 0.78 + crossX * 0.62, baseDirZ * 0.78 + crossZ * 0.62);
+    const dir2 = this.normalize2(baseDirX * 0.4 - crossX * 0.92, baseDirZ * 0.4 - crossZ * 0.92);
+    const dir3 = this.normalize2(baseDirX * 0.95 - crossX * 0.3, baseDirZ * 0.95 - crossZ * 0.3);
+
+    const speed = 0.55 + this.waveParams.windSpeed * 1.75;
     const f0 = this.waveParams.frequency * 0.08;
-    const f1 = f0 * 1.87;
-    const f2 = f0 * 3.41;
+    const f1 = f0 * 1.62;
+    const f2 = f0 * 2.64;
+    const f3 = f0 * 3.85;
 
-    const p0 = (x * dir0x + z * dir0z) * f0 + t * speed;
-    const p1 = (x * dir1x + z * dir1z) * f1 + t * speed * 1.41;
-    const p2 = (x * (dir2x / dir2Len) + z * (dir2z / dir2Len)) * f2 + t * speed * 0.73;
-
-    const a0 = this.waveParams.amplitude;
-    const a1 = this.waveParams.amplitude * 0.45;
+    const a0 = this.waveParams.amplitude * 0.56;
+    const a1 = this.waveParams.amplitude * 0.3;
     const a2 = this.waveParams.amplitude * 0.2;
+    const a3 = this.waveParams.amplitude * 0.1;
 
-    return Math.sin(p0) * a0 + Math.sin(p1) * a1 + Math.sin(p2) * a2;
+    const p0 = (x * dir0.x + z * dir0.y) * f0 + t * speed;
+    const p1 = (x * dir1.x + z * dir1.y) * f1 + t * speed * 1.17;
+    const p2 = (x * dir2.x + z * dir2.y) * f2 + t * speed * 0.87;
+    const p3 = (x * dir3.x + z * dir3.y) * f3 + t * speed * 1.53;
+
+    const gerstner = Math.sin(p0) * a0 + Math.sin(p1) * a1 + Math.sin(p2) * a2 + Math.sin(p3) * a3;
+    const lowNoise = this.fbm2(x * 0.012 + t * 0.07, z * 0.012 - t * 0.05);
+    const highNoise = this.fbm2(x * 0.04 - t * 0.2, z * 0.04 + t * 0.15);
+    const noiseTerm = (lowNoise - 0.5) * this.waveParams.amplitude * 0.38 + (highNoise - 0.5) * this.waveParams.amplitude * 0.18;
+
+    return gerstner + noiseTerm;
+  }
+
+  private normalize2(x: number, y: number): { x: number; y: number } {
+    const len = Math.hypot(x, y) || 1;
+    return { x: x / len, y: y / len };
+  }
+
+  private hash2(x: number, y: number): number {
+    const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  private noise2(x: number, y: number): number {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+    const fx = x - ix;
+    const fy = y - iy;
+
+    const ux = fx * fx * (3 - 2 * fx);
+    const uy = fy * fy * (3 - 2 * fy);
+
+    const a = this.hash2(ix, iy);
+    const b = this.hash2(ix + 1, iy);
+    const c = this.hash2(ix, iy + 1);
+    const d = this.hash2(ix + 1, iy + 1);
+
+    const x1 = a + (b - a) * ux;
+    const x2 = c + (d - c) * ux;
+    return x1 + (x2 - x1) * uy;
+  }
+
+  private fbm2(x: number, y: number): number {
+    let value = 0;
+    let amp = 0.5;
+    let freq = 1;
+
+    for (let i = 0; i < 4; i += 1) {
+      value += this.noise2(x * freq, y * freq) * amp;
+      freq *= 2.02;
+      amp *= 0.53;
+    }
+
+    return value;
   }
 
   private onWindowResize(): void {

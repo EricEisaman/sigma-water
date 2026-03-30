@@ -39,7 +39,6 @@ export class ShaderManager {
       const id = context.getId();
       console.log(`📝 Registering shader context: ${id}`);
       
-      context.initialize();
       this.contexts.set(id, context);
       
       console.log(`✅ Shader context registered: ${id}`);
@@ -223,9 +222,9 @@ export class ShaderManager {
     try {
       console.log('🧹 Disposing shader manager');
       
-      for (const context of this.contexts.values()) {
+      this.contexts.forEach((context) => {
         context.dispose();
-      }
+      });
 
       this.contexts.clear();
       this.activeContextId = null;

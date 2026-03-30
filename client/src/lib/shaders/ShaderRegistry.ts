@@ -109,6 +109,9 @@ export class ShaderRegistry {
         entry.cleanup
       );
 
+      // Initialize shader context immediately
+      context.initialize();
+
       this.manager.registerContext(context);
 
       // Set default uniforms if provided
@@ -116,7 +119,7 @@ export class ShaderRegistry {
         context.setUniforms(entry.defaults);
       }
 
-      console.log(`✅ Shader registered: ${entry.id}`);
+      console.log(`✅ Shader registered and initialized: ${entry.id}`);
     } catch (error) {
       console.error(`❌ Failed to register shader: ${error}`);
       throw error;
@@ -166,6 +169,8 @@ export class ShaderRegistry {
       console.error(`❌ Shader not found: ${shaderId}`);
       return;
     }
+
+    console.log(`🌊 Switching to shader: ${shaderId}`);
 
     this.manager.switchTo(shaderId, mesh, {
       fadeDuration: options?.fadeDuration,

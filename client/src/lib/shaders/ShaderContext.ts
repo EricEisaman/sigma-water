@@ -103,7 +103,7 @@ export class ShaderContext {
           samplers: this.config.samplers || [],
           uniformBuffers: this.config.uniformBuffers || ['Scene', 'Mesh'],
           needAlphaBlending: false,
-          shaderLanguage: 4, // WGSL
+          shaderLanguage: 4 as any, // WGSL
         }
       );
 

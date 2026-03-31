@@ -13,6 +13,8 @@ A high-performance, interactive water rendering demonstration built with **Babyl
 ### 🎮 Interactive Controls
 All parameters are adjustable in real-time with live value display:
 
+> Source of truth: active control keys and defaults are defined in `packages/sigma-water-core/src/water/WaterTypeRegistry.ts` and `client/src/components/WaterControls.tsx`.
+
 | Control | Range | Default | Effect |
 |---------|-------|---------|--------|
 | **Wave Amplitude** | 0.1 - 5.0 | 1.5 | Controls wave height and displacement magnitude |

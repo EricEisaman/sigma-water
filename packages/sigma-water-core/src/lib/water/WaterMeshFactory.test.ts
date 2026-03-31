@@ -21,14 +21,31 @@ describe('WaterMeshFactory contracts', () => {
       },
     } as any;
 
-    expect(WaterMeshFactory.needsMeshRecreation(currentMesh, 'gerstnerWaves')).toBe(false);
+    expect(WaterMeshFactory.needsMeshRecreation(currentMesh, 'gerstnerWaves')).toBe(true);
     expect(WaterMeshFactory.needsMeshRecreation(currentMesh, 'oceanWaves')).toBe(true);
   });
 
   test('needsMeshRecreation defaults unknown metadata to groundStandard', () => {
     const currentMesh = { metadata: {} } as any;
 
-    expect(WaterMeshFactory.needsMeshRecreation(currentMesh, 'gerstnerWaves')).toBe(false);
+    expect(WaterMeshFactory.needsMeshRecreation(currentMesh, 'gerstnerWaves')).toBe(true);
     expect(WaterMeshFactory.needsMeshRecreation(currentMesh, 'oceanWaves')).toBe(true);
+  });
+
+  test('needsAdaptiveRetier reacts to camera distance bands for adaptive types', () => {
+    const currentMesh = {
+      metadata: {
+        waterMeshType: 'groundAdaptive',
+        waterAdaptiveTier: 'mid',
+      },
+    } as any;
+
+    expect(
+      WaterMeshFactory.needsAdaptiveRetier(currentMesh, 'oceanWaves', { x: 0, y: 40, z: 0 })
+    ).toBe(true);
+
+    expect(
+      WaterMeshFactory.needsAdaptiveRetier(currentMesh, 'oceanWaves', { x: 320, y: 80, z: 260 })
+    ).toBe(false);
   });
 });

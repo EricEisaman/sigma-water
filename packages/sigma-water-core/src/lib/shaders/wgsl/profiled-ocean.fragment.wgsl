@@ -33,6 +33,19 @@ uniform underwaterColorR: f32;
 uniform underwaterColorG: f32;
 uniform underwaterColorB: f32;
 uniform underwaterFactor: f32;
+uniform profileShallowColor: vec3<f32>;
+uniform profileMidColor: vec3<f32>;
+uniform profileDeepColor: vec3<f32>;
+uniform profileFoamColor: vec3<f32>;
+uniform profileScatterColor: vec3<f32>;
+uniform profileReflectionColor: vec3<f32>;
+uniform profileHorizonGlow: vec3<f32>;
+uniform profileFresnelBase: f32;
+uniform profileFresnelStrength: f32;
+uniform profileFresnelPower: f32;
+uniform profileDepthViewScale: f32;
+uniform profileToneGamma: f32;
+uniform profileSpecularClamp: f32;
 
 varying vWorldPos : vec3<f32>;
 varying vNormal : vec3<f32>;
@@ -93,32 +106,30 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
   let ndl = max(dot(normal, lightDir), 0.0);
   let ndv = max(dot(normal, viewDir), 0.0);
-  let fresnel = 0.03 + 0.7 * pow(1.0 - ndv, 4.6);
+  let fresnel = max(uniforms.profileFresnelBase, 0.0)
+    + max(uniforms.profileFresnelStrength, 0.0) * pow(1.0 - ndv, max(uniforms.profileFresnelPower, 0.5));
   let slope = clamp(1.0 - normal.y, 0.0, 1.0);
   let heightBand = clamp(input.vWorldPos.y / max(amp * 2.8, 0.001) * 0.5 + 0.5, 0.0, 1.0);
   let cameraDist = max(length(scene.vEyePosition.xyz - input.vWorldPos), 0.001);
 
   let depthDistance = max(uniforms.depthFadeDistance, 0.2);
   let depthExp = max(uniforms.depthFadeExponent, 0.25);
-  let viewDepth = clamp(cameraDist / (depthDistance * 170.0), 0.0, 1.0);
-  let troughDepth = clamp((1.0 - heightBand) * 0.72 + slope * 0.42, 0.0, 1.0);
-  let crestLift = clamp(heightBand * (1.0 - slope) * 1.22, 0.0, 1.0);
-  let pseudoDepth = clamp(troughDepth + viewDepth * 0.52 - crestLift * 0.36, 0.0, 1.0);
-  let depthLerp = pow(pseudoDepth, depthExp * 0.88);
+  let viewDepth = clamp(cameraDist / (depthDistance * max(uniforms.profileDepthViewScale, 60.0)), 0.0, 1.0);
+  let troughDepth = clamp((1.0 - heightBand) * 0.78 + slope * 0.46, 0.0, 1.0);
+  let crestLift = clamp(heightBand * (1.0 - slope) * 1.15, 0.0, 1.0);
+  let pseudoDepth = clamp(troughDepth + viewDepth * 0.55 - crestLift * 0.35, 0.0, 1.0);
+  let depthLerp = pow(pseudoDepth, depthExp * 0.92);
 
-  let shallowColor = vec3<f32>(0.08, 0.5, 0.48);
-  let midColor = vec3<f32>(0.02, 0.28, 0.34);
-  let deepColor = vec3<f32>(0.01, 0.09, 0.17);
-  let baseColor = mix(shallowColor, midColor, smoothstep(0.06, 0.6, depthLerp));
-  let bodyColor = mix(baseColor, deepColor, smoothstep(0.35, 1.0, depthLerp));
-  let colorBody = mix(baseColor, bodyColor, clamp(ndl * 0.34 + 0.26, 0.0, 1.0));
+  let baseColor = mix(uniforms.profileShallowColor, uniforms.profileMidColor, smoothstep(0.08, 0.62, depthLerp));
+  let bodyColor = mix(baseColor, uniforms.profileDeepColor, smoothstep(0.38, 1.0, depthLerp));
+  let colorBody = mix(baseColor, bodyColor, clamp(ndl * 0.36 + 0.24, 0.0, 1.0));
 
   let halfVec = normalize(lightDir + viewDir);
   let specularStrength = max(uniforms.specularIntensity, 0.0);
-  let gloss = clamp(0.46 + specularStrength * 0.2 - slope * 0.08, 0.18, 0.84);
-  let specularRaw = pow(max(dot(normal, halfVec), 0.0), mix(24.0, 170.0, gloss)) * (0.06 + specularStrength * 0.34);
+  let gloss = clamp(0.34 + specularStrength * 0.18 - slope * 0.1, 0.14, 0.8);
+  let specularRaw = pow(max(dot(normal, halfVec), 0.0), mix(24.0, 170.0, gloss)) * (0.07 + specularStrength * 0.34);
   let specularWide = pow(max(dot(normal, halfVec), 0.0), mix(16.0, 52.0, gloss)) * (0.015 + specularStrength * 0.07);
-  let specular = min(specularRaw + specularWide, 0.22);
+  let specular = min(specularRaw + specularWide, max(uniforms.profileSpecularClamp, 0.05));
 
   let wavePattern = sin(dot(input.vWorldPos.xz, windDir) * freq * 1.6 + uniforms.time * (0.3 + windSpd * 0.55));
   let crossPattern = sin(dot(input.vWorldPos.xz, crossDir) * freq * 2.1 - uniforms.time * (0.52 + windSpd * 0.72));
@@ -160,19 +171,19 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
       + islandRing * pow(max(uniforms.islandIntersectionFactor, 0.0), intersectionFalloff)
     );
 
-  let scatter = vec3<f32>(0.0, 0.06, 0.08) * pow(1.0 - ndv, 1.8) * (0.72 + amp * 0.28);
+  let scatter = uniforms.profileScatterColor * pow(1.0 - ndv, 1.9) * (0.75 + amp * 0.3);
   let reflectionDir = reflect(-viewDir, normal);
   let skyColor = getSkyColor(reflectionDir);
-  let reflectionTint = mix(vec3<f32>(0.72, 0.84, 0.95), skyColor, 0.78);
-  let reflected = min(reflectionTint * fresnel * (0.14 + ndl * 0.08), vec3<f32>(0.4, 0.46, 0.5));
-  let lighting = colorBody * (0.16 + ndl * 0.84);
+  let reflectionTint = mix(uniforms.profileReflectionColor, skyColor, 0.75);
+  let reflected = min(reflectionTint * fresnel * (0.14 + ndl * 0.08), vec3<f32>(0.5, 0.56, 0.6));
+  let lighting = colorBody * (0.14 + ndl * 0.86);
   let foamScale = max(uniforms.foamIntensity, 0.0);
-  let foamColor = vec3<f32>(0.76, 0.89, 0.92) * (whitecaps * (0.28 + windSpd * 0.42) * foamScale + intersectionFoam * 0.62);
+  let foamColor = uniforms.profileFoamColor * (whitecaps * (0.3 + windSpd * 0.48) * foamScale + intersectionFoam * 0.65);
 
-  let horizonGlow = vec3<f32>(0.06, 0.1, 0.12) * pow(1.0 - ndv, 2.3);
+  let horizonGlow = uniforms.profileHorizonGlow * pow(1.0 - ndv, 2.4);
   let colorRaw = lighting + scatter + reflected + vec3<f32>(specular) + foamColor + horizonGlow;
   let colorMapped = colorRaw / (vec3<f32>(1.0) + colorRaw * 0.95);
-  let color = pow(colorMapped, vec3<f32>(0.94));
+  let color = pow(colorMapped, vec3<f32>(max(uniforms.profileToneGamma, 0.7)));
   let underwaterEnabled = step(0.5, uniforms.underwaterEnabled);
   let underwaterAmount = underwaterEnabled * clamp(uniforms.underwaterFactor, 0.0, 1.0);
   let underwaterTint = vec3<f32>(uniforms.underwaterColorR, uniforms.underwaterColorG, uniforms.underwaterColorB);

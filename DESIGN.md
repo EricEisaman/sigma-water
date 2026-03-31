@@ -1,8 +1,10 @@
 # Sigma Water Demo - Design & Architecture
 
+> Status note (2026-03-31): this document contains early design exploration. Current implementation is procedural multi-octave Gerstner/Seascape-style WGSL shaders (not FFT/JONSWAP in production path).
+
 ## Overview
 
-This document outlines the architecture and design approach for recreating the ThreeJSWaterPro demo using Babylon.js 9. The implementation will focus on realistic ocean water rendering with FFT-based wave simulation, dynamic reflections, refractions, foam generation, and interactive controls.
+This document outlines the architecture and design approach for recreating the ThreeJSWaterPro demo using Babylon.js 9. The production implementation focuses on realistic ocean rendering with procedural WGSL wave displacement, dynamic reflections/refractions, foam generation, and interactive controls.
 
 ## Scene Architecture
 
@@ -35,7 +37,7 @@ The rendering will follow this sequence:
 
 ### Wave Generation Approach
 
-Instead of implementing full FFT (which is complex), the initial implementation will use **Gerstner waves** - an analytical approach that provides realistic wave behavior with lower computational cost:
+The active implementation uses **procedural Gerstner/Seascape-style waves** - an analytical approach that provides realistic wave behavior with lower computational cost:
 
 ```
 Wave Height = sum of Gerstner waves

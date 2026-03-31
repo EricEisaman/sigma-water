@@ -52,6 +52,7 @@ type ControlValues = {
   normalDistanceFalloff: number;
   depthFadeDistance: number;
   depthFadeExponent: number;
+  specularIntensity: number;
   boatScale: number;
   boatYOffset: number;
   islandScale: number;
@@ -100,6 +101,7 @@ const DEFAULT_VALUES: ControlValues = {
   normalDistanceFalloff: 0.03,
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
+  specularIntensity: 1.0,
   boatScale: 1,
   boatYOffset: 0.4,
   islandScale: 1,
@@ -146,6 +148,7 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   normalDistanceFalloff: 'ndf',
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
+  specularIntensity: 'si',
   boatScale: 'bs',
   boatYOffset: 'by',
   islandScale: 'is',
@@ -232,6 +235,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [normalDistanceFalloff, setNormalDistanceFalloff] = useState(initialValues.normalDistanceFalloff);
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
+  const [specularIntensity, setSpecularIntensity] = useState(initialValues.specularIntensity);
 
   // Objects
   const [boatScale, setBoatScale] = useState(initialValues.boatScale);
@@ -302,6 +306,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('normalDistanceFalloff', initialValues.normalDistanceFalloff);
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
+    onParameterChange('specularIntensity', initialValues.specularIntensity);
     onParameterChange('boatScale', initialValues.boatScale);
     onParameterChange('boatYOffset', initialValues.boatYOffset);
     onParameterChange('islandScale', initialValues.islandScale);
@@ -355,6 +360,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       normalDistanceFalloff,
       depthFadeDistance,
       depthFadeExponent,
+      specularIntensity,
       boatScale,
       boatYOffset,
       islandScale,
@@ -415,6 +421,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     normalDistanceFalloff,
     depthFadeDistance,
     depthFadeExponent,
+    specularIntensity,
     boatScale,
     boatYOffset,
     islandScale,
@@ -600,6 +607,12 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('depthFadeExponent', val);
   }, [onParameterChange]);
 
+  const handleSpecularIntensityChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setSpecularIntensity(val);
+    onParameterChange('specularIntensity', val);
+  }, [onParameterChange]);
+
   const handleBoatScaleChange = useCallback((value: number[]) => {
     const val = value[0];
     setBoatScale(val);
@@ -692,6 +705,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setNormalDistanceFalloff(0.03);
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
+    setSpecularIntensity(1.0);
     setBoatScale(1);
     setBoatYOffset(0.4);
     setIslandScale(1);
@@ -722,6 +736,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('normalDistanceFalloff', 0.03);
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
+    onParameterChange('specularIntensity', 1.0);
     onParameterChange('boatScale', 1);
     onParameterChange('boatYOffset', 0.4);
     onParameterChange('islandScale', 1);
@@ -768,6 +783,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     'normalDistanceFalloff',
     'depthFadeDistance',
     'depthFadeExponent',
+    'specularIntensity',
   ].some((key) => supportsShaderControl(key as ShaderControlKey));
 
   return (
@@ -1127,6 +1143,22 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     onValueChange={(v) => handleDepthFadeExponentChange(v)}
                     min={0.7}
                     max={3.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+                )}
+
+                {supportsShaderControl('specularIntensity') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Specular Intensity: <span className="text-purple-400 font-bold">{specularIntensity.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[specularIntensity]}
+                    onValueChange={(v) => handleSpecularIntensityChange(v)}
+                    min={0.0}
+                    max={2.0}
                     step={0.05}
                     className="w-full"
                   />

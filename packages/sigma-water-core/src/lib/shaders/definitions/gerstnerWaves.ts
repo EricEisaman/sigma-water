@@ -1,22 +1,22 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
-import { waterVertexShader, gerstnerFragmentShader } from '../wgsl';
+import { waterVertexShader, profiledOceanFragmentShader } from '../wgsl';
 
 export const gerstnerWavesDefinition: ShaderRegistryEntry = {
   id: 'gerstnerWaves',
   displayName: 'Gerstner Waves',
-  description: 'High-performance wave simulation with dynamic foam and caustics',
+  description: 'Photoreal hero-ocean profile with crisp crests and deep troughs',
   
   features: {
     supportsFoam: true,
-    supportsCaustics: true,
+    supportsCaustics: false,
     supportsCollisions: true,
     supportsWake: true,
   },
   
   shader: {
     vertex: waterVertexShader,
-    fragment: gerstnerFragmentShader,
+    fragment: profiledOceanFragmentShader,
   },
   
   babylon: {
@@ -63,6 +63,19 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
       'underwaterColorG',
       'underwaterColorB',
       'underwaterFactor',
+      'profileShallowColor',
+      'profileMidColor',
+      'profileDeepColor',
+      'profileFoamColor',
+      'profileScatterColor',
+      'profileReflectionColor',
+      'profileHorizonGlow',
+      'profileFresnelBase',
+      'profileFresnelStrength',
+      'profileFresnelPower',
+      'profileDepthViewScale',
+      'profileToneGamma',
+      'profileSpecularClamp',
     ],
     attributes: ['position', 'normal', 'uv'],
     uniformBuffers: ['Scene', 'Mesh'],
@@ -111,6 +124,19 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
     underwaterColorG: 0.16,
     underwaterColorB: 0.24,
     underwaterFactor: 0,
+    profileShallowColor: [0.055, 0.26, 0.38],
+    profileMidColor: [0.012, 0.11, 0.21],
+    profileDeepColor: [0.003, 0.02, 0.06],
+    profileFoamColor: [0.78, 0.88, 0.95],
+    profileScatterColor: [0.0, 0.06, 0.095],
+    profileReflectionColor: [0.74, 0.86, 0.98],
+    profileHorizonGlow: [0.05, 0.09, 0.13],
+    profileFresnelBase: 0.02,
+    profileFresnelStrength: 0.74,
+    profileFresnelPower: 5.0,
+    profileDepthViewScale: 165,
+    profileToneGamma: 0.94,
+    profileSpecularClamp: 0.22,
   },
   
   setup: (context: ShaderContext) => {

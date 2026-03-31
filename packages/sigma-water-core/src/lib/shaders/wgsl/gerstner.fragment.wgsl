@@ -133,7 +133,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let normal = normalize(mix(input.vNormal, detailNormal, detailStrength));
   let ndl = max(dot(normal, lightDir), 0.0);
   let ndv = max(dot(normal, viewDir), 0.0);
-  let fresnel = 0.01 + 0.32 * pow(1.0 - ndv, 4.2);
+  let fresnel = 0.02 + 0.74 * pow(1.0 - ndv, 5.0);
   let slope = clamp(1.0 - normal.y, 0.0, 1.0);
   let heightBand = clamp(input.vWorldPos.y / max(amp * 2.6, 0.001) * 0.5 + 0.5, 0.0, 1.0);
 
@@ -152,8 +152,9 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let gloss = clamp(0.42 + specularStrength * 0.24 - slope * 0.18, 0.18, 0.92);
   let specPower = mix(42.0, 260.0, gloss);
   let specNorm = (specPower + 8.0) / (PI * 8.0);
-  let specularRaw = pow(max(dot(normal, halfVec), 0.0), specPower) * specNorm * (0.06 + specularStrength * 0.28);
-  let specular = min(specularRaw, 0.18);
+  let specularRaw = pow(max(dot(normal, halfVec), 0.0), specPower) * specNorm * (0.08 + specularStrength * 0.42);
+  let specularWide = pow(max(dot(normal, halfVec), 0.0), mix(24.0, 72.0, gloss)) * (0.02 + specularStrength * 0.08);
+  let specular = min(specularRaw + specularWide, 0.22);
 
   let foamNoiseBlend = clamp(uniforms.foamNoiseFactor, 0.0, 1.0);
   let foamCellScale = max(uniforms.foamCellScale, 0.02);
@@ -232,21 +233,19 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   waterColor += vec3<f32>(0.04, 0.09, 0.08) * caustic;
 
   let scatter = vec3<f32>(0.0, 0.09, 0.12) * pow(1.0 - ndv, 1.7) * (0.45 + amp * 0.55);
-  let skyMix = clamp(uniforms.skyReflectionMix, 0.0, 0.45);
+  let skyMix = clamp(uniforms.skyReflectionMix, 0.0, 0.9);
   let reflectionDir = reflect(-viewDir, normal);
   let skyColor = getSkyColor(reflectionDir);
   let reflectionTint = mix(vec3<f32>(0.72, 0.84, 0.95), skyColor, skyMix);
   let lit = waterColor * (0.18 + ndl * 0.82) + scatter;
-  let reflected = reflectionTint * fresnel * 0.12;
+  let reflected = min(reflectionTint * fresnel * (0.14 + ndl * 0.08), vec3<f32>(0.38, 0.42, 0.48));
   let foamTone = smoothstep(0.2, 0.86, detailedNoise);
   let foamColor = mix(vec3<f32>(0.79, 0.86, 0.92), vec3<f32>(0.94, 0.97, 1.0), foamTone) * foam;
 
   let horizonGlow = vec3<f32>(0.04, 0.08, 0.12) * pow(1.0 - ndv, 2.2);
   let colorRaw = lit + reflected + vec3<f32>(specular) + foamColor + horizonGlow;
-  let colorMapped = colorRaw / (vec3<f32>(1.0) + colorRaw * 1.8);
-  let luma = dot(colorMapped, vec3<f32>(0.2126, 0.7152, 0.0722));
-  let lumaClamp = min(1.0, 0.74 / max(luma, 0.0001));
-  let color = colorMapped * lumaClamp;
+  let colorMapped = colorRaw / (vec3<f32>(1.0) + colorRaw * 0.95);
+  let color = pow(colorMapped, vec3<f32>(0.95));
   let underwaterEnabled = step(0.5, uniforms.underwaterEnabled);
   let underwaterAmount = underwaterEnabled * clamp(uniforms.underwaterFactor, 0.0, 1.0);
   let underwaterTint = vec3<f32>(uniforms.underwaterColorR, uniforms.underwaterColorG, uniforms.underwaterColorB);

@@ -1,6 +1,8 @@
 # Sigma Water - Ocean Renderer
 ## Production-Grade Scalable Shader System for GDC 2026
 
+> Status note (2026-03-31): parts of this summary were historical. The authoritative implementation now lives under `packages/sigma-water-core/src/**` and `client/src/components/WaterControls.tsx`. See `docs/UNIFORM_AND_SWEEP_AUDIT_2026-03-31.md` for current end-to-end audit details.
+
 ---
 
 ## 🎯 Project Overview
@@ -15,21 +17,21 @@
 
 ### Core Abstractions
 
-#### **ShaderContext** (`client/src/lib/shaders/ShaderContext.ts`)
+#### **ShaderContext** (`packages/sigma-water-core/src/lib/shaders/ShaderContext.ts`)
 Individual shader lifecycle management with:
 - Material creation and disposal
 - Uniform state management
 - Setup/update/cleanup callbacks
 - Type-safe uniform operations
 
-#### **ShaderManager** (`client/src/lib/shaders/ShaderManager.ts`)
+#### **ShaderManager** (`packages/sigma-water-core/src/lib/shaders/ShaderManager.ts`)
 Orchestrates transitions between shader contexts:
 - Smooth fade transitions (configurable duration)
 - Uniform preservation across switches
 - Transition progress tracking
 - Memory-safe cleanup
 
-#### **ShaderRegistry** (`client/src/lib/shaders/ShaderRegistry.ts`)
+#### **ShaderRegistry** (`packages/sigma-water-core/src/lib/shaders/ShaderRegistry.ts`)
 Declarative registry for all shaders:
 - Simple API for shader registration
 - Feature flag system (foam, caustics, collisions, wake)
@@ -62,13 +64,13 @@ High-performance wave simulation with dynamic foam and caustics
 
 ### 2. **Ocean Waves** (oceanWaves)
 Multi-octave procedural ocean with advanced normal calculation
-- **Features:** Foam ❌ | Caustics ❌ | Collisions ❌ | Wake ❌
+- **Features:** Foam ✅ | Caustics ❌
 - **Characteristics:** Procedural noise-based waves, Fresnel reflections
 - **Use Case:** Stylized, performance-optimized rendering
 
 ### 3. **Tropical Waves** (tropicalWaves)
 Vibrant Caribbean waters with shallow turquoise and deep azure tones
-- **Features:** Foam ❌ | Caustics ❌ | Collisions ❌ | Wake ❌
+- **Features:** Foam ✅ | Caustics ❌
 - **Characteristics:** Bright turquoise palette, shallow/deep color blending
 - **Use Case:** Tropical/vacation scenes
 
@@ -80,13 +82,13 @@ Dramatic dark waters with aggressive wave patterns and white caps
 
 ### 5. **Glassy Waves** (glassyWaves)
 Mirror-like calm waters with perfect reflections and minimal wave activity
-- **Features:** Foam ❌ | Caustics ✅ | Collisions ❌ | Wake ❌
+- **Features:** Foam ✅ | Caustics ❌
 - **Characteristics:** Clear blue, strong specular reflection, subtle caustics
 - **Use Case:** Calm/serene scenes
 
 ### 6. **Toon Water** (toonWater)
 Stylized cell-shaded water with bold outlines and cartoon aesthetics
-- **Features:** Foam ❌ | Caustics ❌ | Collisions ❌ | Wake ❌
+- **Features:** Foam ✅ | Caustics ❌
 - **Characteristics:** Cel-shading, color blocking, posterization, outline effects
 - **Use Case:** Stylized/artistic rendering (Wind Waker-inspired)
 
@@ -95,7 +97,7 @@ Stylized cell-shaded water with bold outlines and cartoon aesthetics
 ## 📁 File Structure
 
 ```
-client/src/lib/shaders/
+packages/sigma-water-core/src/lib/shaders/
 ├── ShaderContext.ts              # Individual shader lifecycle
 ├── ShaderManager.ts              # Transition orchestration
 ├── ShaderRegistry.ts             # Declarative registry

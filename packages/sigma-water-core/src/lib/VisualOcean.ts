@@ -41,6 +41,7 @@ export class VisualOcean {
   private depthRenderer: DepthRenderer | null = null;
   private parameterState: Record<string, number> = {};
   private lastFrameTimeMs = 0;
+  private lastAdaptiveRetierCheckMs = 0;
   private elapsedTime = 0;
   private renderHealthCheckHandle: ReturnType<typeof setTimeout> | null = null;
   private hasLoggedFirstFrame = false;
@@ -199,7 +200,12 @@ export class VisualOcean {
     if (!this.scene) throw new Error('Scene not initialized');
 
     console.log('🌊 Creating ocean mesh...');
-    this.oceanMesh = WaterMeshFactory.createWaterMesh('gerstnerWaves', this.scene);
+    const cameraPos = this.camera?.position;
+    this.oceanMesh = WaterMeshFactory.createWaterMesh(
+      'gerstnerWaves',
+      this.scene,
+      cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined
+    );
 
     console.log('📦 Initializing ShaderRegistry...');
     this.shaderRegistry = new ShaderRegistry(this.scene);
@@ -314,23 +320,45 @@ export class VisualOcean {
     const windSpeed = Math.max(this.parameterState.windSpeed ?? 0.6, 0.05);
 
     const angle = windDirectionDeg * 0.017453292519943295;
-    const windDir = new Vector3(Math.cos(angle), 0, Math.sin(angle));
-    const crossDir = new Vector3(-windDir.z, 0, windDir.x);
-    const rippleDir = windDir.add(crossDir.scale(0.35)).normalize();
+    const windDir = new Vector3(Math.cos(angle), 0, Math.sin(angle)).normalize();
+    const crossDir = new Vector3(-windDir.z, 0, windDir.x).normalize();
+    const dirA = windDir;
+    const dirB = windDir.scale(0.9).add(crossDir.scale(0.42)).normalize();
+    const dirC = windDir.scale(0.64).add(crossDir.scale(-0.78)).normalize();
+    const dirD = crossDir.scale(0.98).add(windDir.scale(0.18)).normalize();
+    const dirE = crossDir.scale(-0.82).add(windDir.scale(0.42)).normalize();
+    const dirF = windDir.scale(-0.3).add(crossDir.scale(0.95)).normalize();
 
-    const xzWind = x * windDir.x + z * windDir.z;
-    const xzCross = x * crossDir.x + z * crossDir.z;
-    const xzRipple = x * rippleDir.x + z * rippleDir.z;
+    const travel = 0.24 + windSpeed * 0.36;
+    const pA = (x * dirA.x + z * dirA.z) * (waveFrequency * 0.86) - this.elapsedTime * (travel * 0.88);
+    const pB = (x * dirB.x + z * dirB.z) * (waveFrequency * 1.12) - this.elapsedTime * (travel * 1.16) + 1.7;
+    const pC = (x * dirC.x + z * dirC.z) * (waveFrequency * 1.44) - this.elapsedTime * (travel * 1.36) + 4.2;
+    const pD = (x * dirD.x + z * dirD.z) * (waveFrequency * 1.82) - this.elapsedTime * (travel * 1.72) + 2.3;
+    const pE = (x * dirE.x + z * dirE.z) * (waveFrequency * 2.08) - this.elapsedTime * (travel * 2.04) + 5.1;
+    const pF = (x * dirF.x + z * dirF.z) * (waveFrequency * 2.42) - this.elapsedTime * (travel * 2.36) + 0.9;
 
-    const swellPhase = xzWind * waveFrequency + this.elapsedTime * (0.22 + windSpeed * 0.34);
-    const mediumPhase = xzCross * (waveFrequency * 1.65) - this.elapsedTime * (0.44 + windSpeed * 0.58);
-    const ripplePhase = xzRipple * (waveFrequency * 2.5) + this.elapsedTime * (0.95 + windSpeed * 1.05);
+    const crestness = Math.min(Math.max(0.22 + windSpeed * 0.58, 0.0), 1.0);
+    const crestWave = (phase: number, asym: number): number => {
+      const s = Math.sin(phase);
+      const crest = Math.max(s, 0);
+      const trough = Math.min(s, 0);
+      const sharpened = crest * (1 + crest * (0.65 + asym * 0.55));
+      return trough * (1 - asym * 0.35) + sharpened;
+    };
 
-    const swell = Math.sin(swellPhase) * waveAmplitude;
-    const mediumWave = Math.sin(mediumPhase) * waveAmplitude * (0.42 + windSpeed * 0.1);
-    const ripples = Math.sin(ripplePhase) * waveAmplitude * (0.16 + windSpeed * 0.06);
+    const wA = crestWave(pA, crestness) * waveAmplitude * 0.28;
+    const wB = crestWave(pB, crestness * 0.9) * waveAmplitude * 0.22;
+    const wC = crestWave(pC, crestness * 0.75) * waveAmplitude * 0.18;
+    const wD = crestWave(pD, crestness * 0.62) * waveAmplitude * 0.14;
+    const wE = Math.sin(pE) * waveAmplitude * 0.1;
+    const wF = Math.sin(pF) * waveAmplitude * 0.08;
+    const interference = (
+      Math.sin((pA - pC) * 0.63)
+      + Math.sin((pB - pD) * 0.57)
+      + Math.sin((pE - pF) * 0.71)
+    ) * waveAmplitude * 0.03;
 
-    return swell + mediumWave + ripples;
+    return wA + wB + wC + wD + wE + wF + interference;
   }
 
   private applyBoatFlotation(deltaTime: number): void {
@@ -721,7 +749,9 @@ export class VisualOcean {
     this.shaderRegistry.setUniform('islandCollisionCenter', [this.islandCollisionCenter.x, this.islandCollisionCenter.y, this.islandCollisionCenter.z]);
     this.shaderRegistry.setUniform('boatCollisionRadius', this.boatCollisionRadius);
     this.shaderRegistry.setUniform('islandCollisionRadius', this.islandCollisionRadius);
-    this.shaderRegistry.setUniform('collisionFoamStrength', this.collisionMode === 1 ? 1.2 : 1.0);
+    if (this.currentShaderName === 'gerstnerWaves') {
+      this.shaderRegistry.setUniform('collisionFoamStrength', this.collisionMode === 1 ? 1.2 : 1.0);
+    }
     this.shaderRegistry.setUniform('boatIntersectionFactor', this.boatIntersectionFactor);
     this.shaderRegistry.setUniform('islandIntersectionFactor', this.islandIntersectionFactor);
   }
@@ -797,7 +827,13 @@ export class VisualOcean {
 
       if (needsRecreation) {
         console.log(`🔄 Mesh recreation needed for ${nextWaterType}`);
-        this.oceanMesh = WaterMeshFactory.replaceWaterMesh(this.oceanMesh, nextWaterType, this.scene);
+        const cameraPos = this.camera?.position;
+        this.oceanMesh = WaterMeshFactory.replaceWaterMesh(
+          this.oceanMesh,
+          nextWaterType,
+          this.scene,
+          cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined
+        );
       }
 
       // Switch shader in registry
@@ -927,6 +963,29 @@ export class VisualOcean {
 
       const p = this.camera.position;
       this.shaderRegistry.setUniform('cameraPosition', [p.x, p.y, p.z]);
+
+      if (this.oceanMesh && now - this.lastAdaptiveRetierCheckMs > 900) {
+        this.lastAdaptiveRetierCheckMs = now;
+        const shouldRetier = WaterMeshFactory.needsAdaptiveRetier(
+          this.oceanMesh,
+          this.currentShaderName,
+          { x: p.x, y: p.y, z: p.z }
+        );
+
+        if (shouldRetier && this.scene) {
+          this.shaderRegistry.disposeActiveMaterial();
+          this.oceanMesh = WaterMeshFactory.replaceWaterMesh(
+            this.oceanMesh,
+            this.currentShaderName,
+            this.scene,
+            { x: p.x, y: p.y, z: p.z }
+          );
+          this.shaderRegistry.switchTo(this.currentShaderName, this.oceanMesh);
+          this.shaderRegistry.setUniforms(filterParameterStateForShader(this.parameterState, this.currentShaderName));
+          this.shaderRegistry.setUniform('time', this.elapsedTime);
+          this.applyCollisionUniforms();
+        }
+      }
     }
 
     this.updateUnderwaterState(deltaTime);

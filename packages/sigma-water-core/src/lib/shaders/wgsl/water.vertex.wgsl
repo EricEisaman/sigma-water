@@ -45,24 +45,75 @@ fn seaOctave(uvIn: vec2<f32>, choppy: f32) -> f32 {
   return pow(1.0 - pow(mixedWv.x * mixedWv.y, 0.65), choppy);
 }
 
-fn octaveDisplacement(xzIn: vec2<f32>, time: f32, freqBase: f32, ampBase: f32, windSpd: f32) -> f32 {
-  var uv = xzIn;
+fn crestWave(phase: f32, asymmetry: f32) -> f32 {
+  let s = sin(phase);
+  let crest = max(s, 0.0);
+  let trough = min(s, 0.0);
+  let sharpenedCrest = crest * (1.0 + crest * (0.65 + asymmetry * 0.55));
+  return trough * (1.0 - asymmetry * 0.35) + sharpenedCrest;
+}
+
+fn octaveDisplacement(xzIn: vec2<f32>, time: f32, freqBase: f32, ampBase: f32, windSpd: f32, windDir: vec2<f32>, crossDir: vec2<f32>) -> f32 {
+  var uv = vec2<f32>(dot(xzIn, windDir), dot(xzIn, crossDir));
   var freq = freqBase;
   var amp = ampBase;
   var choppy = 4.0;
   var h = 0.0;
+  var flowA = vec2<f32>(time * (0.82 + windSpd * 0.36), time * (0.34 + windSpd * 0.18));
+  var flowB = vec2<f32>(time * (0.56 + windSpd * 0.26) + 1.3, time * (0.91 + windSpd * 0.22) - 0.7);
+  var flowC = vec2<f32>(time * (1.03 + windSpd * 0.29) - 2.1, time * (0.62 + windSpd * 0.27) + 1.9);
 
   for (var i = 0; i < 3; i = i + 1) {
-    let d1 = seaOctave((uv + vec2<f32>(time, time * 0.92)) * freq, choppy);
-    let d2 = seaOctave((uv - vec2<f32>(time * 1.06, time)) * freq, choppy);
-    h += (d1 + d2) * amp;
+    let d1 = seaOctave((uv + flowA) * freq, choppy);
+    let d2 = seaOctave((uv + flowB) * freq, choppy);
+    let d3 = seaOctave((uv + flowC) * freq, choppy);
+    h += (d1 * 0.45 + d2 * 0.33 + d3 * 0.22) * amp;
     uv = OCTAVE_M * uv;
+    flowA = OCTAVE_M * flowA * 1.04 + vec2<f32>(0.7, -0.2);
+    flowB = OCTAVE_M * flowB * 1.02 + vec2<f32>(-0.5, 0.4);
+    flowC = OCTAVE_M * flowC * 1.03 + vec2<f32>(0.2, 0.6);
     freq *= 1.9;
     amp *= 0.22;
     choppy = mix(choppy, 1.0, 0.2);
   }
 
   return h * (0.38 + windSpd * 0.08);
+}
+
+fn travelingHeight(xz: vec2<f32>, time: f32, freq: f32, amp: f32, windSpd: f32, windDir: vec2<f32>, crossDir: vec2<f32>) -> f32 {
+  let crestness = clamp(0.22 + windSpd * 0.58, 0.0, 1.0);
+  let travel = 0.24 + windSpd * 0.36;
+  let dirA = windDir;
+  let dirB = normalize(windDir * 0.9 + crossDir * 0.42);
+  let dirC = normalize(windDir * 0.64 - crossDir * 0.78);
+  let dirD = normalize(crossDir * 0.98 + windDir * 0.18);
+  let dirE = normalize(crossDir * -0.82 + windDir * 0.42);
+  let dirF = normalize(windDir * -0.3 + crossDir * 0.95);
+
+  let pA = dot(xz, dirA) * (freq * 0.86) - time * (travel * 0.88);
+  let pB = dot(xz, dirB) * (freq * 1.12) - time * (travel * 1.16) + 1.7;
+  let pC = dot(xz, dirC) * (freq * 1.44) - time * (travel * 1.36) + 4.2;
+  let pD = dot(xz, dirD) * (freq * 1.82) - time * (travel * 1.72) + 2.3;
+  let pE = dot(xz, dirE) * (freq * 2.08) - time * (travel * 2.04) + 5.1;
+  let pF = dot(xz, dirF) * (freq * 2.42) - time * (travel * 2.36) + 0.9;
+
+  let wA = crestWave(pA, crestness) * amp * 0.28;
+  let wB = crestWave(pB, crestness * 0.9) * amp * 0.22;
+  let wC = crestWave(pC, crestness * 0.75) * amp * 0.18;
+  let wD = crestWave(pD, crestness * 0.62) * amp * 0.14;
+  let wE = sin(pE) * amp * 0.1;
+  let wF = sin(pF) * amp * 0.08;
+  let interference = (
+    sin((pA - pC) * 0.63)
+    + sin((pB - pD) * 0.57)
+    + sin((pE - pF) * 0.71)
+  ) * amp * 0.03;
+
+  let macroWave = wA + wB + wC + wD + wE + wF + interference;
+  let octaveTime = 1.0 + time * (0.86 + windSpd * 0.34);
+  let octaveWave = octaveDisplacement(vec2<f32>(xz.x * 0.75, xz.y), octaveTime, freq * 0.94, amp * 0.66, windSpd, windDir, crossDir);
+
+  return macroWave + octaveWave;
 }
 
 @vertex
@@ -76,31 +127,29 @@ fn main(input: VertexInputs) -> FragmentInputs {
   let crossDir = vec2<f32>(-windDir.y, windDir.x);
 
   let xz = input.position.xz;
-  let swellPhase = dot(xz, windDir) * freq + uniforms.time * (0.22 + windSpd * 0.34);
-  let mediumPhase = dot(xz, crossDir) * (freq * 1.65) - uniforms.time * (0.44 + windSpd * 0.58);
-  let rippleDir = normalize(windDir + crossDir * 0.35);
-  let ripplePhase = dot(xz, rippleDir) * (freq * 2.5) + uniforms.time * (0.95 + windSpd * 1.05);
+  let height = travelingHeight(xz, uniforms.time, freq, amp, windSpd, windDir, crossDir);
 
-  // Multi-cascade displacement: large swell + medium chop + fine ripples.
-  let swell = sin(swellPhase) * amp;
-  let mediumWave = sin(mediumPhase) * amp * (0.42 + windSpd * 0.1);
-  let ripples = sin(ripplePhase) * amp * (0.16 + windSpd * 0.06);
-  let timeFlow = 1.0 + uniforms.time * (0.8 + windSpd * 0.2);
-  let octaveWave = octaveDisplacement(vec2<f32>(xz.x * 0.75, xz.y), timeFlow, freq * 0.92, amp * 0.68, windSpd);
-  let height = swell + mediumWave + ripples + octaveWave;
+  let dirA = windDir;
+  let dirB = normalize(windDir * 0.9 + crossDir * 0.42);
+  let dirC = normalize(windDir * 0.64 - crossDir * 0.78);
+  let dirD = normalize(crossDir * 0.98 + windDir * 0.18);
+  let phaseA = dot(xz, dirA) * (freq * 0.86) - uniforms.time * ((0.24 + windSpd * 0.36) * 0.88);
+  let phaseB = dot(xz, dirB) * (freq * 1.12) - uniforms.time * ((0.24 + windSpd * 0.36) * 1.16) + 1.7;
+  let phaseC = dot(xz, dirC) * (freq * 1.44) - uniforms.time * ((0.24 + windSpd * 0.36) * 1.36) + 4.2;
+  let phaseD = dot(xz, dirD) * (freq * 1.82) - uniforms.time * ((0.24 + windSpd * 0.36) * 1.72) + 2.3;
 
   let chop = amp * (0.06 + windSpd * 0.08);
-  let chopOffset = windDir * cos(swellPhase) * chop + crossDir * cos(mediumPhase) * (chop * 0.55);
+  let chopOffset =
+    dirA * cos(phaseA) * (chop * 0.36)
+    + dirB * cos(phaseB) * (chop * 0.3)
+    + dirC * cos(phaseC) * (chop * 0.24)
+    + dirD * cos(phaseD) * (chop * 0.2);
   let displaced = vec3<f32>(input.position.x + chopOffset.x, input.position.y + height, input.position.z + chopOffset.y);
 
-  let dHdSwell = cos(swellPhase) * amp * freq;
-  let dHdMedium = cos(mediumPhase) * amp * (0.42 + windSpd * 0.1) * freq * 1.65;
-  let dHdRipple = cos(ripplePhase) * amp * (0.16 + windSpd * 0.06) * freq * 2.5;
-  let octaveDelta = max(freq * 0.55, 0.04);
-  let octaveDx = octaveDisplacement(vec2<f32>((xz.x + octaveDelta) * 0.75, xz.y), timeFlow, freq * 0.92, amp * 0.68, windSpd) - octaveWave;
-  let octaveDz = octaveDisplacement(vec2<f32>(xz.x * 0.75, xz.y + octaveDelta), timeFlow, freq * 0.92, amp * 0.68, windSpd) - octaveWave;
-  let octaveSlope = vec2<f32>(octaveDx / octaveDelta, octaveDz / octaveDelta);
-  let slope = windDir * dHdSwell + crossDir * dHdMedium + rippleDir * dHdRipple + octaveSlope;
+  let slopeDelta = max(freq * 0.45, 0.08);
+  let heightDx = travelingHeight(xz + vec2<f32>(slopeDelta, 0.0), uniforms.time, freq, amp, windSpd, windDir, crossDir) - height;
+  let heightDz = travelingHeight(xz + vec2<f32>(0.0, slopeDelta), uniforms.time, freq, amp, windSpd, windDir, crossDir) - height;
+  let slope = vec2<f32>(heightDx / slopeDelta, heightDz / slopeDelta);
   let localNormal = normalize(vec3<f32>(-slope.x, 1.0, -slope.y));
 
   vertexOutputs.position = scene.viewProjection * mesh.world * vec4<f32>(displaced, 1.0);

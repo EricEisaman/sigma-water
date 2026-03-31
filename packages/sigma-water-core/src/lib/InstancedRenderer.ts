@@ -2,6 +2,8 @@
  * Instanced Renderer - GPU instancing for efficient rendering of multiple boats
  */
 
+import { instancedRendererShader } from './shaders/wgsl';
+
 export interface InstanceData {
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
@@ -126,17 +128,7 @@ export class InstancedRenderer {
    * Get instancing shader code
    */
   public getShaderCode(): string {
-    return `
-      struct Instance {
-        transform: mat4x4<f32>,
-      }
-
-      @group(0) @binding(1) var<storage> instances: array<Instance>;
-
-      fn getInstanceTransform(instanceIndex: u32) -> mat4x4<f32> {
-        return instances[instanceIndex].transform;
-      }
-    `;
+    return instancedRendererShader;
   }
 
   public dispose(): void {

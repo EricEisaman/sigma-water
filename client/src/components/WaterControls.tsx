@@ -32,7 +32,6 @@ type ControlValues = {
   foamShredSlope: number;
   foamFizzWeight: number;
   causticIntensity: number;
-  specularIntensity: number;
   depthFadeDistance: number;
   depthFadeExponent: number;
   boatScale: number;
@@ -61,7 +60,6 @@ const DEFAULT_VALUES: ControlValues = {
   foamShredSlope: 0.56,
   foamFizzWeight: 0.28,
   causticIntensity: 0.85,
-  specularIntensity: 1.0,
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
   boatScale: 1,
@@ -88,7 +86,6 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   foamShredSlope: 'fss',
   foamFizzWeight: 'ffz',
   causticIntensity: 'ci',
-  specularIntensity: 'si',
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
   boatScale: 'bs',
@@ -155,7 +152,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [foamShredSlope, setFoamShredSlope] = useState(initialValues.foamShredSlope);
   const [foamFizzWeight, setFoamFizzWeight] = useState(initialValues.foamFizzWeight);
   const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
-  const [specularIntensity, setSpecularIntensity] = useState(initialValues.specularIntensity);
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
 
@@ -206,7 +202,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamShredSlope', initialValues.foamShredSlope);
     onParameterChange('foamFizzWeight', initialValues.foamFizzWeight);
     onParameterChange('causticIntensity', initialValues.causticIntensity);
-    onParameterChange('specularIntensity', initialValues.specularIntensity);
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
     onParameterChange('boatScale', initialValues.boatScale);
@@ -240,7 +235,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       foamShredSlope,
       foamFizzWeight,
       causticIntensity,
-      specularIntensity,
       depthFadeDistance,
       depthFadeExponent,
       boatScale,
@@ -281,7 +275,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     foamShredSlope,
     foamFizzWeight,
     causticIntensity,
-    specularIntensity,
     depthFadeDistance,
     depthFadeExponent,
     boatScale,
@@ -348,12 +341,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     const val = value[0];
     setCausticIntensity(val);
     onParameterChange('causticIntensity', val);
-  }, [onParameterChange]);
-
-  const handleSpecularIntensityChange = useCallback((value: number[]) => {
-    const val = value[0];
-    setSpecularIntensity(val);
-    onParameterChange('specularIntensity', val);
   }, [onParameterChange]);
 
   const handleDepthFadeDistanceChange = useCallback((value: number[]) => {
@@ -439,7 +426,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setFoamShredSlope(0.56);
     setFoamFizzWeight(0.28);
     setCausticIntensity(0.85);
-    setSpecularIntensity(1.0);
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
     setBoatScale(1);
@@ -465,7 +451,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamShredSlope', 0.56);
     onParameterChange('foamFizzWeight', 0.28);
     onParameterChange('causticIntensity', 0.85);
-    onParameterChange('specularIntensity', 1.0);
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
     onParameterChange('boatScale', 1);
@@ -507,7 +492,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     'foamShredSlope',
     'foamFizzWeight',
     'causticIntensity',
-    'specularIntensity',
     'depthFadeDistance',
     'depthFadeExponent',
   ].some((key) => supportsShaderControl(key as ShaderControlKey));
@@ -787,22 +771,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     min={0.0}
                     max={1.5}
                     step={0.1}
-                    className="w-full"
-                  />
-                </div>
-                )}
-
-                {supportsShaderControl('specularIntensity') && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300">
-                    Specular Intensity: <span className="text-purple-400 font-bold">{specularIntensity.toFixed(2)}</span>
-                  </label>
-                  <Slider
-                    value={[specularIntensity]}
-                    onValueChange={(v) => handleSpecularIntensityChange(v)}
-                    min={0.0}
-                    max={2.5}
-                    step={0.05}
                     className="w-full"
                   />
                 </div>

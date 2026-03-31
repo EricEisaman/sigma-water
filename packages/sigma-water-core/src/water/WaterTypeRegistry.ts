@@ -38,6 +38,9 @@ export type ShaderControlKey =
   | 'foamFizzWeight'
   | 'causticIntensity'
   | 'specularIntensity'
+  | 'skyReflectionMix'
+  | 'normalDetailStrength'
+  | 'normalDistanceFalloff'
   | 'depthFadeDistance'
   | 'depthFadeExponent';
 
@@ -54,6 +57,9 @@ export const SHADER_CONTROL_KEYS: readonly ShaderControlKey[] = [
   'foamFizzWeight',
   'causticIntensity',
   'specularIntensity',
+  'skyReflectionMix',
+  'normalDetailStrength',
+  'normalDistanceFalloff',
   'depthFadeDistance',
   'depthFadeExponent',
 ] as const;
@@ -78,6 +84,9 @@ export const GerstnerWaves: IWater = {
     'foamFizzWeight',
     'causticIntensity',
     'specularIntensity',
+    'skyReflectionMix',
+    'normalDetailStrength',
+    'normalDistanceFalloff',
     'depthFadeDistance',
     'depthFadeExponent',
   ],

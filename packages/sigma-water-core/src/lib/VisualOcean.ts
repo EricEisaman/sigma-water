@@ -62,19 +62,50 @@ export class VisualOcean {
   private readonly baseCameraSpeed = 0.5;
   private readonly speedBoostMultiplier = 4;
   private isSpeedBoostActive = false;
+  private isMoveUpActive = false;
+  private isMoveDownActive = false;
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Shift' || !this.camera || this.isSpeedBoostActive) {
+    if (!this.camera) {
       return;
     }
-    this.isSpeedBoostActive = true;
-    this.camera.speed = this.baseCameraSpeed * this.speedBoostMultiplier;
+
+    if (event.key === 'Shift') {
+      if (this.isSpeedBoostActive) {
+        return;
+      }
+      this.isSpeedBoostActive = true;
+      this.camera.speed = this.baseCameraSpeed * this.speedBoostMultiplier;
+      return;
+    }
+
+    if (event.code === 'KeyQ') {
+      this.isMoveUpActive = true;
+      return;
+    }
+
+    if (event.code === 'KeyE') {
+      this.isMoveDownActive = true;
+    }
   };
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
-    if (event.key !== 'Shift' || !this.camera) {
+    if (!this.camera) {
       return;
     }
-    this.isSpeedBoostActive = false;
-    this.camera.speed = this.baseCameraSpeed;
+
+    if (event.key === 'Shift') {
+      this.isSpeedBoostActive = false;
+      this.camera.speed = this.baseCameraSpeed;
+      return;
+    }
+
+    if (event.code === 'KeyQ') {
+      this.isMoveUpActive = false;
+      return;
+    }
+
+    if (event.code === 'KeyE') {
+      this.isMoveDownActive = false;
+    }
   };
 
   constructor(canvas: HTMLCanvasElement) {
@@ -774,6 +805,14 @@ export class VisualOcean {
     this.applyCollisionUniforms();
 
     if (this.camera) {
+      if (this.isMoveUpActive || this.isMoveDownActive) {
+        const moveDir = (this.isMoveUpActive ? 1 : 0) - (this.isMoveDownActive ? 1 : 0);
+        if (moveDir !== 0) {
+          const verticalSpeed = this.camera.speed * 12.0;
+          this.camera.position.y += moveDir * verticalSpeed * deltaTime;
+        }
+      }
+
       const p = this.camera.position;
       this.shaderRegistry.setUniform('cameraPosition', [p.x, p.y, p.z]);
     }

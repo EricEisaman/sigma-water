@@ -20,10 +20,15 @@ uniform islandCollisionCenter: vec3<f32>;
 uniform boatCollisionRadius: f32;
 uniform islandCollisionRadius: f32;
 uniform collisionFoamStrength: f32;
+uniform skyReflectionMix: f32;
+uniform normalDetailStrength: f32;
+uniform normalDistanceFalloff: f32;
 
 varying vWorldPos : vec3<f32>;
 varying vNormal : vec3<f32>;
 varying vUv : vec2<f32>;
+
+const PI: f32 = 3.141592653589793;
 
 fn hash21(p: vec2<f32>) -> f32 {
   let h = dot(p, vec2<f32>(127.1, 311.7));
@@ -77,9 +82,14 @@ fn collisionRingMask(worldPos: vec3<f32>, center: vec3<f32>, radius: f32, width:
   return ring * mix(0.72, 1.0, ridge) * heightFalloff;
 }
 
+fn getSkyColor(eIn: vec3<f32>) -> vec3<f32> {
+  var e = eIn;
+  e.y = (max(e.y, 0.0) * 0.8 + 0.2) * 0.8;
+  return vec3<f32>(pow(1.0 - e.y, 2.0), 1.0 - e.y, 0.6 + (1.0 - e.y) * 0.4) * 1.1;
+}
+
 @fragment
 fn main(input: FragmentInputs) -> FragmentOutputs {
-  let normal = normalize(input.vNormal);
   let viewDir = normalize(scene.vEyePosition.xyz - input.vWorldPos);
   let lightDir = normalize(vec3<f32>(0.32, 0.91, 0.26));
 
@@ -90,6 +100,19 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let windDir = normalize(vec2<f32>(cos(angle), sin(angle)));
   let crossDir = vec2<f32>(-windDir.y, windDir.x);
 
+  let cameraDist = max(length(scene.vEyePosition.xyz - input.vWorldPos), 0.001);
+  let detailScale = 1.0 / max(uniforms.normalDistanceFalloff, 0.01);
+  let detailBlend = clamp(exp(-cameraDist * detailScale), 0.0, 1.0);
+  let detailStrength = clamp(uniforms.normalDetailStrength, 0.0, 1.0) * detailBlend;
+
+  let detailUv = input.vWorldPos.xz * (freq * 2.6) + vec2<f32>(uniforms.time * 0.35, -uniforms.time * 0.28);
+  let eps = max(cameraDist * 0.0002, 0.01);
+  let detailH = fbm(detailUv * 0.35) * 0.62 + fbm(detailUv * 0.9) * 0.38;
+  let detailHx = fbm((detailUv + vec2<f32>(eps, 0.0)) * 0.35) * 0.62 + fbm((detailUv + vec2<f32>(eps, 0.0)) * 0.9) * 0.38;
+  let detailHz = fbm((detailUv + vec2<f32>(0.0, eps)) * 0.35) * 0.62 + fbm((detailUv + vec2<f32>(0.0, eps)) * 0.9) * 0.38;
+  let detailNormal = normalize(vec3<f32>(-(detailHx - detailH) / eps, 1.0, -(detailHz - detailH) / eps));
+
+  let normal = normalize(mix(input.vNormal, detailNormal, detailStrength));
   let ndl = max(dot(normal, lightDir), 0.0);
   let ndv = max(dot(normal, viewDir), 0.0);
   let fresnel = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
@@ -109,7 +132,9 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let halfVec = normalize(lightDir + viewDir);
   let specularStrength = max(uniforms.specularIntensity, 0.0);
   let gloss = clamp(0.42 + specularStrength * 0.24 - slope * 0.18, 0.18, 0.92);
-  let specular = pow(max(dot(normal, halfVec), 0.0), mix(42.0, 260.0, gloss)) * (0.18 + specularStrength * 1.1);
+  let specPower = mix(42.0, 260.0, gloss);
+  let specNorm = (specPower + 8.0) / (PI * 8.0);
+  let specular = pow(max(dot(normal, halfVec), 0.0), specPower) * specNorm * (0.22 + specularStrength * 1.15);
 
   let foamNoiseBlend = clamp(uniforms.foamNoiseFactor, 0.0, 1.0);
   let foamCellScale = max(uniforms.foamCellScale, 0.02);
@@ -172,7 +197,10 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   waterColor += vec3<f32>(0.04, 0.09, 0.08) * caustic;
 
   let scatter = vec3<f32>(0.0, 0.09, 0.12) * pow(1.0 - ndv, 1.7) * (0.45 + amp * 0.55);
-  let reflectionTint = vec3<f32>(0.72, 0.84, 0.95);
+  let skyMix = clamp(uniforms.skyReflectionMix, 0.0, 1.0);
+  let reflectionDir = reflect(-viewDir, normal);
+  let skyColor = getSkyColor(reflectionDir);
+  let reflectionTint = mix(vec3<f32>(0.72, 0.84, 0.95), skyColor, skyMix);
   let lit = waterColor * (0.18 + ndl * 0.82) + scatter;
   let reflected = reflectionTint * fresnel;
   let foamTone = smoothstep(0.2, 0.86, detailedNoise);

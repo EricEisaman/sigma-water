@@ -42,6 +42,9 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
       'boatCollisionRadius',
       'islandCollisionRadius',
       'collisionFoamStrength',
+      'skyReflectionMix',
+      'normalDetailStrength',
+      'normalDistanceFalloff',
     ],
     attributes: ['position', 'normal', 'uv'],
     uniformBuffers: ['Scene', 'Mesh'],
@@ -69,6 +72,9 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
     boatCollisionRadius: 2.2,
     islandCollisionRadius: 4.0,
     collisionFoamStrength: 1.0,
+    skyReflectionMix: 0.72,
+    normalDetailStrength: 0.55,
+    normalDistanceFalloff: 0.03,
   },
   
   setup: (context: ShaderContext) => {

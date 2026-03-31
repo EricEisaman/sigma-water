@@ -32,6 +32,9 @@ type ControlValues = {
   foamShredSlope: number;
   foamFizzWeight: number;
   causticIntensity: number;
+  skyReflectionMix: number;
+  normalDetailStrength: number;
+  normalDistanceFalloff: number;
   depthFadeDistance: number;
   depthFadeExponent: number;
   boatScale: number;
@@ -60,6 +63,9 @@ const DEFAULT_VALUES: ControlValues = {
   foamShredSlope: 0.56,
   foamFizzWeight: 0.28,
   causticIntensity: 0.85,
+  skyReflectionMix: 0.72,
+  normalDetailStrength: 0.55,
+  normalDistanceFalloff: 0.03,
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
   boatScale: 1,
@@ -86,6 +92,9 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   foamShredSlope: 'fss',
   foamFizzWeight: 'ffz',
   causticIntensity: 'ci',
+  skyReflectionMix: 'srm',
+  normalDetailStrength: 'nds',
+  normalDistanceFalloff: 'ndf',
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
   boatScale: 'bs',
@@ -152,6 +161,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [foamShredSlope, setFoamShredSlope] = useState(initialValues.foamShredSlope);
   const [foamFizzWeight, setFoamFizzWeight] = useState(initialValues.foamFizzWeight);
   const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
+  const [skyReflectionMix, setSkyReflectionMix] = useState(initialValues.skyReflectionMix);
+  const [normalDetailStrength, setNormalDetailStrength] = useState(initialValues.normalDetailStrength);
+  const [normalDistanceFalloff, setNormalDistanceFalloff] = useState(initialValues.normalDistanceFalloff);
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
 
@@ -202,6 +214,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamShredSlope', initialValues.foamShredSlope);
     onParameterChange('foamFizzWeight', initialValues.foamFizzWeight);
     onParameterChange('causticIntensity', initialValues.causticIntensity);
+    onParameterChange('skyReflectionMix', initialValues.skyReflectionMix);
+    onParameterChange('normalDetailStrength', initialValues.normalDetailStrength);
+    onParameterChange('normalDistanceFalloff', initialValues.normalDistanceFalloff);
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
     onParameterChange('boatScale', initialValues.boatScale);
@@ -235,6 +250,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       foamShredSlope,
       foamFizzWeight,
       causticIntensity,
+      skyReflectionMix,
+      normalDetailStrength,
+      normalDistanceFalloff,
       depthFadeDistance,
       depthFadeExponent,
       boatScale,
@@ -275,6 +293,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     foamShredSlope,
     foamFizzWeight,
     causticIntensity,
+    skyReflectionMix,
+    normalDetailStrength,
+    normalDistanceFalloff,
     depthFadeDistance,
     depthFadeExponent,
     boatScale,
@@ -341,6 +362,24 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     const val = value[0];
     setCausticIntensity(val);
     onParameterChange('causticIntensity', val);
+  }, [onParameterChange]);
+
+  const handleSkyReflectionMixChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setSkyReflectionMix(val);
+    onParameterChange('skyReflectionMix', val);
+  }, [onParameterChange]);
+
+  const handleNormalDetailStrengthChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setNormalDetailStrength(val);
+    onParameterChange('normalDetailStrength', val);
+  }, [onParameterChange]);
+
+  const handleNormalDistanceFalloffChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setNormalDistanceFalloff(val);
+    onParameterChange('normalDistanceFalloff', val);
   }, [onParameterChange]);
 
   const handleDepthFadeDistanceChange = useCallback((value: number[]) => {
@@ -430,6 +469,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setFoamShredSlope(0.56);
     setFoamFizzWeight(0.28);
     setCausticIntensity(0.85);
+    setSkyReflectionMix(0.72);
+    setNormalDetailStrength(0.55);
+    setNormalDistanceFalloff(0.03);
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
     setBoatScale(1);
@@ -455,6 +497,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamShredSlope', 0.56);
     onParameterChange('foamFizzWeight', 0.28);
     onParameterChange('causticIntensity', 0.85);
+    onParameterChange('skyReflectionMix', 0.72);
+    onParameterChange('normalDetailStrength', 0.55);
+    onParameterChange('normalDistanceFalloff', 0.03);
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
     onParameterChange('boatScale', 1);
@@ -496,12 +541,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     'foamShredSlope',
     'foamFizzWeight',
     'causticIntensity',
+    'skyReflectionMix',
+    'normalDetailStrength',
+    'normalDistanceFalloff',
     'depthFadeDistance',
     'depthFadeExponent',
   ].some((key) => supportsShaderControl(key as ShaderControlKey));
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 max-h-[600px] overflow-y-auto bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl z-50">
+    <div className="fixed bottom-4 right-4 w-96 max-h-[600px] overflow-y-auto bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl z-50 select-none">
       <Card className="border-0 shadow-none bg-transparent">
         <CardHeader className="pb-3 border-b border-slate-700/30">
           <div className="flex items-center justify-between">
@@ -777,6 +825,57 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     step={0.1}
                     className="w-full"
                   />
+                </div>
+                )}
+
+                {supportsShaderControl('skyReflectionMix') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Sky Reflection Mix: <span className="text-purple-400 font-bold">{skyReflectionMix.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[skyReflectionMix]}
+                    onValueChange={(v) => handleSkyReflectionMixChange(v)}
+                    min={0.0}
+                    max={1.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Higher values pull more color and brightness from sky reflections.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('normalDetailStrength') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Normal Detail: <span className="text-purple-400 font-bold">{normalDetailStrength.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[normalDetailStrength]}
+                    onValueChange={(v) => handleNormalDetailStrengthChange(v)}
+                    min={0.0}
+                    max={1.0}
+                    step={0.05}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Controls micro-wave sharpness and fine highlight breakup.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('normalDistanceFalloff') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Normal Distance Falloff: <span className="text-purple-400 font-bold">{normalDistanceFalloff.toFixed(3)}</span>
+                  </label>
+                  <Slider
+                    value={[normalDistanceFalloff]}
+                    onValueChange={(v) => handleNormalDistanceFalloffChange(v)}
+                    min={0.005}
+                    max={0.08}
+                    step={0.0025}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Sets how quickly fine normal detail fades with camera distance.</p>
                 </div>
                 )}
 

@@ -158,6 +158,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
+      "@sigma-water/core": path.resolve(import.meta.dirname, "packages", "sigma-water-core", "src", "index.ts"),
+      "@sigma-water/core/": path.resolve(import.meta.dirname, "packages", "sigma-water-core", "src") + "/",
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
     },
   },

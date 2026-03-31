@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "composite": false,
+    "noEmit": true,
+    "paths": {
+      "@sigma-water/core": ["./src/index.ts"],
+      "@sigma-water/core/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*"]
+}

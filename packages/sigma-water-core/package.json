@@ -1,0 +1,14 @@
+{
+  "name": "@sigma-water/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@babylonjs/core": "^9.0.0",
+    "@babylonjs/loaders": "^9.0.0"
+  }
+}

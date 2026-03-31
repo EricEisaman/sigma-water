@@ -3,13 +3,15 @@ import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Settings2, Eye, Wind, Boxes } from 'lucide-react';
+import { orbitCameraPosition } from '@/lib/cameraOrbit';
 import { 
+  ShaderControlKey,
   WaterType, 
   WATER_TYPES, 
   parseWaterType, 
   serializeWaterType,
   getWaterTypeById 
-} from '@/lib/types/WaterTypeSystem';
+} from '@sigma-water/core';
 
 interface WaterControlsProps {
   onParameterChange: (key: string, value: number) => void;
@@ -30,6 +32,7 @@ type ControlValues = {
   foamShredSlope: number;
   foamFizzWeight: number;
   causticIntensity: number;
+  specularIntensity: number;
   depthFadeDistance: number;
   depthFadeExponent: number;
   boatScale: number;
@@ -58,6 +61,7 @@ const DEFAULT_VALUES: ControlValues = {
   foamShredSlope: 0.56,
   foamFizzWeight: 0.28,
   causticIntensity: 0.85,
+  specularIntensity: 1.0,
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
   boatScale: 1,
@@ -84,6 +88,7 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   foamShredSlope: 'fss',
   foamFizzWeight: 'ffz',
   causticIntensity: 'ci',
+  specularIntensity: 'si',
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
   boatScale: 'bs',
@@ -150,6 +155,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [foamShredSlope, setFoamShredSlope] = useState(initialValues.foamShredSlope);
   const [foamFizzWeight, setFoamFizzWeight] = useState(initialValues.foamFizzWeight);
   const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
+  const [specularIntensity, setSpecularIntensity] = useState(initialValues.specularIntensity);
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
 
@@ -200,6 +206,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamShredSlope', initialValues.foamShredSlope);
     onParameterChange('foamFizzWeight', initialValues.foamFizzWeight);
     onParameterChange('causticIntensity', initialValues.causticIntensity);
+    onParameterChange('specularIntensity', initialValues.specularIntensity);
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
     onParameterChange('boatScale', initialValues.boatScale);
@@ -209,10 +216,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('collisionMode', initialValues.collisionMode);
     onParameterChange('showProxySpheres', initialValues.showProxySpheres);
 
-    const angle = (initialValues.cameraAngle * Math.PI) / 180;
-    const x = ISLAND_X + Math.cos(angle) * initialValues.cameraDistance;
-    const z = ISLAND_Z + Math.sin(angle) * initialValues.cameraDistance;
-    onCameraChange(x, initialValues.cameraHeight, z);
+    const position = orbitCameraPosition(
+      { x: ISLAND_X, z: ISLAND_Z },
+      initialValues.cameraAngle,
+      initialValues.cameraDistance,
+      initialValues.cameraHeight
+    );
+    onCameraChange(position.x, position.y, position.z);
   }, [initialValues, onParameterChange, onCameraChange]);
 
   useEffect(() => {
@@ -230,6 +240,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       foamShredSlope,
       foamFizzWeight,
       causticIntensity,
+      specularIntensity,
       depthFadeDistance,
       depthFadeExponent,
       boatScale,
@@ -270,6 +281,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     foamShredSlope,
     foamFizzWeight,
     causticIntensity,
+    specularIntensity,
     depthFadeDistance,
     depthFadeExponent,
     boatScale,
@@ -338,6 +350,12 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('causticIntensity', val);
   }, [onParameterChange]);
 
+  const handleSpecularIntensityChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setSpecularIntensity(val);
+    onParameterChange('specularIntensity', val);
+  }, [onParameterChange]);
+
   const handleDepthFadeDistanceChange = useCallback((value: number[]) => {
     const val = value[0];
     setDepthFadeDistance(val);
@@ -391,29 +409,22 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCameraDistanceChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraDistance(val);
-    const angle = (cameraAngle * Math.PI) / 180;
-    const x = ISLAND_X + Math.cos(angle) * val;
-    const z = ISLAND_Z + Math.sin(angle) * val;
-    onCameraChange(x, cameraHeight, z);
+    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, cameraAngle, val, cameraHeight);
+    onCameraChange(position.x, position.y, position.z);
   }, [onCameraChange, cameraAngle, cameraHeight]);
 
   const handleCameraHeightChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraHeight(val);
-    const angle = (cameraAngle * Math.PI) / 180;
-    const x = ISLAND_X + Math.cos(angle) * cameraDistance;
-    const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
-    onCameraChange(x, val, z);
+    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, cameraAngle, cameraDistance, val);
+    onCameraChange(position.x, position.y, position.z);
   }, [onCameraChange, cameraAngle, cameraDistance]);
 
   const handleCameraAngleChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraAngle(val);
-    // Rotate camera around island center based on angle
-    const angle = (val * Math.PI) / 180;
-    const x = ISLAND_X + Math.cos(angle) * cameraDistance;
-    const z = ISLAND_Z + Math.sin(angle) * cameraDistance;
-    onCameraChange(x, cameraHeight, z);
+    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, val, cameraDistance, cameraHeight);
+    onCameraChange(position.x, position.y, position.z);
   }, [onCameraChange, cameraDistance, cameraHeight]);
 
   const handleReset = useCallback(() => {
@@ -428,6 +439,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setFoamShredSlope(0.56);
     setFoamFizzWeight(0.28);
     setCausticIntensity(0.85);
+    setSpecularIntensity(1.0);
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
     setBoatScale(1);
@@ -453,6 +465,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('foamShredSlope', 0.56);
     onParameterChange('foamFizzWeight', 0.28);
     onParameterChange('causticIntensity', 0.85);
+    onParameterChange('specularIntensity', 1.0);
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
     onParameterChange('boatScale', 1);
@@ -467,11 +480,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       onShaderChange(defaultWaterType);
     }
     
-    // Compute camera position from orbit formula (angle=0, distance=100, height=50)
-    const angle = (0 * Math.PI) / 180;
-    const x = ISLAND_X + Math.cos(angle) * 100;
-    const z = ISLAND_Z + Math.sin(angle) * 100;
-    onCameraChange(x, 50, z);
+    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, 0, 100, 50);
+    onCameraChange(position.x, position.y, position.z);
   }, [onParameterChange, onCameraChange, onShaderChange]);
 
   const handleShaderChange = useCallback((shaderName: string) => {
@@ -485,6 +495,22 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera' | 'waterType') => {
     setExpandedSection(expandedSection === section ? null : section);
   };
+
+  const activeWater = getWaterTypeById(serializeWaterType(waterType));
+  const activeShaderControls = new Set<ShaderControlKey>(activeWater.shaderControlKeys);
+  const supportsShaderControl = (key: ShaderControlKey): boolean => activeShaderControls.has(key);
+  const hasEffectControls = [
+    'foamIntensity',
+    'foamWidth',
+    'foamNoiseFactor',
+    'foamCellScale',
+    'foamShredSlope',
+    'foamFizzWeight',
+    'causticIntensity',
+    'specularIntensity',
+    'depthFadeDistance',
+    'depthFadeExponent',
+  ].some((key) => supportsShaderControl(key as ShaderControlKey));
 
   return (
     <div className="fixed bottom-4 right-4 w-96 max-h-[600px] overflow-y-auto bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl z-50">
@@ -536,19 +562,19 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   ))}
                 </select>
                 <p className="text-xs text-slate-400 mt-1">
-                  {getWaterTypeById(serializeWaterType(waterType)).description}
+                  {activeWater.description}
                 </p>
                 <div className="text-xs text-slate-500 mt-2 space-y-1 bg-slate-800/30 rounded px-2 py-1.5">
                   <div className="flex items-center gap-2">
                     <span>Foam Support:</span>
-                    <span className={getWaterTypeById(serializeWaterType(waterType)).supportsFoam ? 'text-green-400' : 'text-slate-500'}>
-                      {getWaterTypeById(serializeWaterType(waterType)).supportsFoam ? '✓' : '✗'}
+                    <span className={activeWater.supportsFoam ? 'text-green-400' : 'text-slate-500'}>
+                      {activeWater.supportsFoam ? '✓' : '✗'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span>Caustics Support:</span>
-                    <span className={getWaterTypeById(serializeWaterType(waterType)).supportsCaustics ? 'text-green-400' : 'text-slate-500'}>
-                      {getWaterTypeById(serializeWaterType(waterType)).supportsCaustics ? '✓' : '✗'}
+                    <span className={activeWater.supportsCaustics ? 'text-green-400' : 'text-slate-500'}>
+                      {activeWater.supportsCaustics ? '✓' : '✗'}
                     </span>
                   </div>
                 </div>
@@ -571,6 +597,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
             {expandedSection === 'waves' && (
               <div className="space-y-3 pl-2">
+                {supportsShaderControl('waveAmplitude') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Wave Amplitude: <span className="text-blue-400 font-bold">{waveAmplitude.toFixed(2)}</span>
@@ -584,7 +611,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('waveFrequency') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Wave Frequency: <span className="text-blue-400 font-bold">{waveFrequency.toFixed(2)}</span>
@@ -598,7 +627,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('windDirection') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300 flex items-center gap-2">
                     <Wind className="h-4 w-4 text-cyan-400" />
@@ -613,7 +644,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('windSpeed') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Wind Speed: <span className="text-cyan-400 font-bold">{windSpeed.toFixed(2)}</span>
@@ -627,6 +660,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
               </div>
             )}
           </div>
@@ -646,6 +680,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
             {expandedSection === 'effects' && (
               <div className="space-y-3 pl-2">
+                {supportsShaderControl('foamIntensity') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Foam Intensity: <span className="text-purple-400 font-bold">{foamIntensity.toFixed(2)}</span>
@@ -659,7 +694,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('foamWidth') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Foam Width: <span className="text-purple-400 font-bold">{foamWidth.toFixed(2)}</span>
@@ -673,7 +710,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('foamNoiseFactor') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Foam Noise Blend: <span className="text-purple-400 font-bold">{foamNoiseFactor.toFixed(2)}</span>
@@ -687,7 +726,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('foamCellScale') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Cell Size: <span className="text-purple-400 font-bold">{foamCellScale.toFixed(3)}</span>
@@ -701,7 +742,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('foamShredSlope') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Foam Shred: <span className="text-purple-400 font-bold">{foamShredSlope.toFixed(2)}</span>
@@ -715,7 +758,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('foamFizzWeight') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Foam Fizz: <span className="text-purple-400 font-bold">{foamFizzWeight.toFixed(2)}</span>
@@ -729,7 +774,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('causticIntensity') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Caustic Intensity: <span className="text-purple-400 font-bold">{causticIntensity.toFixed(2)}</span>
@@ -743,7 +790,25 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('specularIntensity') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Specular Intensity: <span className="text-purple-400 font-bold">{specularIntensity.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[specularIntensity]}
+                    onValueChange={(v) => handleSpecularIntensityChange(v)}
+                    min={0.0}
+                    max={2.5}
+                    step={0.05}
+                    className="w-full"
+                  />
+                </div>
+                )}
+
+                {supportsShaderControl('depthFadeDistance') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Depth Fade Width: <span className="text-purple-400 font-bold">{depthFadeDistance.toFixed(2)}</span>
@@ -757,7 +822,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
 
+                {supportsShaderControl('depthFadeExponent') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Depth Fade Curve: <span className="text-purple-400 font-bold">{depthFadeExponent.toFixed(2)}</span>
@@ -771,6 +838,11 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     className="w-full"
                   />
                 </div>
+                )}
+
+                {!hasEffectControls && (
+                  <p className="text-xs text-slate-500">This shader does not expose effect controls.</p>
+                )}
               </div>
             )}
           </div>

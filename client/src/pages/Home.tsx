@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { VisualOcean } from "@/lib/VisualOcean";
+import { VisualOcean } from "@sigma-water/core";
 import { WaterControls } from "@/components/WaterControls";
-import { WaterType, serializeWaterType } from "@/lib/types/WaterTypeSystem";
+import { WaterType, serializeWaterType } from "@sigma-water/core";
+
+type SigmaWaterWindow = Window & {
+  __sigmaWaterOcean?: VisualOcean;
+};
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -11,19 +15,35 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    let disposed = false;
+    let removeResizeListener: (() => void) | null = null;
 
     const initializeScene = async () => {
       try {
         console.log("🎬 SIGGRAPH Ocean Renderer - Initializing...");
-        
-        const canvas = canvasRef.current!;
+
+        const win = window as SigmaWaterWindow;
+        if (win.__sigmaWaterOcean) {
+          win.__sigmaWaterOcean.dispose();
+          win.__sigmaWaterOcean = undefined;
+        }
+
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
         // Create and initialize ocean
         const ocean = new VisualOcean(canvas);
         await ocean.initialize();
+
+        if (disposed) {
+          ocean.dispose();
+          return;
+        }
+
+        win.__sigmaWaterOcean = ocean;
         oceanRef.current = ocean;
 
         setInitialized(true);
@@ -37,12 +57,11 @@ export default function Home() {
         };
 
         window.addEventListener("resize", handleResize);
-
-        return () => {
+        removeResizeListener = () => {
           window.removeEventListener("resize", handleResize);
-          ocean.dispose();
         };
       } catch (err) {
+        if (disposed) return;
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         console.error("❌ Initialization error:", err);
         setError(errorMsg);
@@ -51,6 +70,18 @@ export default function Home() {
     };
 
     initializeScene();
+
+    return () => {
+      const win = window as SigmaWaterWindow;
+      disposed = true;
+      removeResizeListener?.();
+      const currentOcean = oceanRef.current;
+      oceanRef.current?.dispose();
+      if (win.__sigmaWaterOcean === currentOcean) {
+        win.__sigmaWaterOcean = undefined;
+      }
+      oceanRef.current = null;
+    };
   }, []);
 
   const handleParameterChange = (key: string, value: number) => {

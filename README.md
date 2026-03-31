@@ -90,6 +90,46 @@ pnpm run build
 pnpm run start
 ```
 
+### Verification
+```bash
+pnpm run verify:all
+```
+
+This runs unit tests, TypeScript checks, and runtime log verification.
+
+For runtime-only validation:
+```bash
+pnpm run verify:runtime-log
+```
+
+This command checks the most recent 10-minute window in `.manus-logs/browserConsole.log` for critical rendering failure signatures.
+It also fails if the newest log entry is stale (older than 20 minutes), preventing false passes on outdated logs.
+
+For marker validation (fresh successful render evidence):
+```bash
+pnpm run verify:render-markers
+```
+
+This checks the same log window for first-frame and render-health success markers.
+If first-frame is not present in the current window, timestamped shader-switch success markers are accepted as alternate render evidence.
+
+For CI contexts where runtime logs may not exist:
+```bash
+pnpm run verify:ci
+```
+
+This runs tests, type checks, runtime failure-signature scanning, and render-marker validation.
+Both log-based checks are configured with `--allow-missing-file true` so CI can pass in environments without browser log capture.
+
+For local concise output:
+```bash
+pnpm run verify:concise
+```
+
+This is the same validation set as `verify:all`, using a dot reporter for shorter test output.
+
+GitHub Actions workflow is available at `.github/workflows/verify.yml` and runs on push + pull request.
+
 ## Browser Requirements
 - **WebGL2** support (all modern browsers)
 - **WebGPU** support (optional, for enhanced features)

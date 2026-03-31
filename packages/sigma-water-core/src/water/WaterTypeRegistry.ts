@@ -30,12 +30,27 @@ export type ShaderControlKey =
   | 'waveFrequency'
   | 'windDirection'
   | 'windSpeed'
+  | 'crestFoamEnabled'
+  | 'crestFoamThreshold'
   | 'foamIntensity'
   | 'foamWidth'
   | 'foamNoiseFactor'
   | 'foamCellScale'
   | 'foamShredSlope'
   | 'foamFizzWeight'
+  | 'intersectionFoamEnabled'
+  | 'intersectionFoamIntensity'
+  | 'intersectionFoamWidth'
+  | 'intersectionFoamFalloff'
+  | 'intersectionFoamNoise'
+  | 'intersectionFoamVerticalRange'
+  | 'underwaterEnabled'
+  | 'underwaterTransitionDepth'
+  | 'underwaterFogDensity'
+  | 'underwaterHorizonMix'
+  | 'underwaterColorR'
+  | 'underwaterColorG'
+  | 'underwaterColorB'
   | 'causticIntensity'
   | 'specularIntensity'
   | 'skyReflectionMix'
@@ -49,12 +64,27 @@ export const SHADER_CONTROL_KEYS: readonly ShaderControlKey[] = [
   'waveFrequency',
   'windDirection',
   'windSpeed',
+  'crestFoamEnabled',
+  'crestFoamThreshold',
   'foamIntensity',
   'foamWidth',
   'foamNoiseFactor',
   'foamCellScale',
   'foamShredSlope',
   'foamFizzWeight',
+  'intersectionFoamEnabled',
+  'intersectionFoamIntensity',
+  'intersectionFoamWidth',
+  'intersectionFoamFalloff',
+  'intersectionFoamNoise',
+  'intersectionFoamVerticalRange',
+  'underwaterEnabled',
+  'underwaterTransitionDepth',
+  'underwaterFogDensity',
+  'underwaterHorizonMix',
+  'underwaterColorR',
+  'underwaterColorG',
+  'underwaterColorB',
   'causticIntensity',
   'specularIntensity',
   'skyReflectionMix',
@@ -76,12 +106,27 @@ export const GerstnerWaves: IWater = {
     'waveFrequency',
     'windDirection',
     'windSpeed',
+    'crestFoamEnabled',
+    'crestFoamThreshold',
     'foamIntensity',
     'foamWidth',
     'foamNoiseFactor',
     'foamCellScale',
     'foamShredSlope',
     'foamFizzWeight',
+    'intersectionFoamEnabled',
+    'intersectionFoamIntensity',
+    'intersectionFoamWidth',
+    'intersectionFoamFalloff',
+    'intersectionFoamNoise',
+    'intersectionFoamVerticalRange',
+    'underwaterEnabled',
+    'underwaterTransitionDepth',
+    'underwaterFogDensity',
+    'underwaterHorizonMix',
+    'underwaterColorR',
+    'underwaterColorG',
+    'underwaterColorB',
     'causticIntensity',
     'specularIntensity',
     'skyReflectionMix',
@@ -97,13 +142,31 @@ export const OceanWaves: IWater = {
   meshType: 'groundDense',
   displayName: 'Ocean Waves',
   description: 'Procedural ocean shader with multi-octave normal generation',
-  supportsFoam: false,
+  supportsFoam: true,
   supportsCaustics: false,
   shaderControlKeys: [
     'waveAmplitude',
     'waveFrequency',
     'windDirection',
     'windSpeed',
+    'crestFoamEnabled',
+    'crestFoamThreshold',
+    'foamIntensity',
+    'foamWidth',
+    'foamNoiseFactor',
+    'intersectionFoamEnabled',
+    'intersectionFoamIntensity',
+    'intersectionFoamWidth',
+    'intersectionFoamFalloff',
+    'intersectionFoamNoise',
+    'intersectionFoamVerticalRange',
+    'underwaterEnabled',
+    'underwaterTransitionDepth',
+    'underwaterFogDensity',
+    'underwaterHorizonMix',
+    'underwaterColorR',
+    'underwaterColorG',
+    'underwaterColorB',
     'specularIntensity',
     'depthFadeDistance',
     'depthFadeExponent',
@@ -115,13 +178,31 @@ export const ToonWater: IWater = {
   meshType: 'groundStandard',
   displayName: 'Toon Water',
   description: 'Stylized cell-shaded water with bold color bands',
-  supportsFoam: false,
+  supportsFoam: true,
   supportsCaustics: false,
   shaderControlKeys: [
     'waveAmplitude',
     'waveFrequency',
     'windDirection',
     'windSpeed',
+    'crestFoamEnabled',
+    'crestFoamThreshold',
+    'foamIntensity',
+    'foamWidth',
+    'foamNoiseFactor',
+    'intersectionFoamEnabled',
+    'intersectionFoamIntensity',
+    'intersectionFoamWidth',
+    'intersectionFoamFalloff',
+    'intersectionFoamNoise',
+    'intersectionFoamVerticalRange',
+    'underwaterEnabled',
+    'underwaterTransitionDepth',
+    'underwaterFogDensity',
+    'underwaterHorizonMix',
+    'underwaterColorR',
+    'underwaterColorG',
+    'underwaterColorB',
     'specularIntensity',
   ],
 } as const;

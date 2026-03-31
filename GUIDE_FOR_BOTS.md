@@ -59,6 +59,9 @@ Only use Render Web Service when explicitly requested.
 - GLB meshes are children of parent proxies and transform with them.
 - Collision source mode can switch between GLB geometry and parent physics proxies.
 - Collision cross-section radius is computed CPU-side based on active mode and passed as uniforms each frame.
+- Mesh-water intersection foam is driven by runtime intersection factors (boat/island) and can be disabled independently in controls.
+- Crest foam controls are shared across active water shaders and must stay parameter-compatible.
+- Underwater transition is camera-height driven with smooth uniform blending plus scene clear-color interpolation.
 
 ## 6) Controls Contract
 
@@ -94,6 +97,14 @@ If foam behavior seems wrong:
 2. Verify parent physics proxy visibility state and actual Y values.
 3. Verify parent physics proxy center derivation matches active collision mode.
 4. Verify collision center and cross-radius uniforms update per frame.
+5. Verify intersection foam toggle is enabled and intersection factors are non-zero near the waterline.
+6. Verify crest foam enable and threshold are set to visible values for the active shader.
+
+If underwater transition seems wrong:
+
+1. Verify underwater toggle is enabled in controls.
+2. Verify transition depth and fog density are non-zero.
+3. Verify camera crosses the waterline and underwaterFactor changes smoothly.
 
 ## 8) Safe Edit Zones
 

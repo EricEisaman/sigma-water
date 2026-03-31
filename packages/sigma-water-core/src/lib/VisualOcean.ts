@@ -54,6 +54,9 @@ export class VisualOcean {
   private islandCollisionCenter = new Vector3(22, 0, 10);
   private boatCollisionRadius = 2.2;
   private islandCollisionRadius = 4.0;
+  private boatIntersectionFactor = 0;
+  private islandIntersectionFactor = 0;
+  private underwaterFactor = 0;
   private boatVerticalVelocity = 0;
   private islandAlignmentOffset = new Vector3(0, 0, 0);
   private showProxySpheres = true;
@@ -335,6 +338,12 @@ export class VisualOcean {
       return;
     }
 
+    // In GLB geometry collision mode we derive contact from mesh bounds each frame.
+    // Avoid proxy-driven spring updates here, otherwise parent/proxy feedback can jitter.
+    if (this.collisionMode === 0) {
+      return;
+    }
+
     const boatX = this.boatCollisionSphere.position.x;
     const boatZ = this.boatCollisionSphere.position.z;
 
@@ -440,6 +449,38 @@ export class VisualOcean {
 
     const delta = targetCenter.subtract(bounds.center);
     root.position.addInPlace(delta);
+  }
+
+  private computeIntersectionFactor(bounds: {
+    min: Vector3;
+    max: Vector3;
+    extentY: number;
+  }, waterHeight: number): number {
+    const minY = bounds.min.y;
+    const maxY = bounds.max.y;
+    if (waterHeight <= minY || waterHeight >= maxY) {
+      return 0;
+    }
+
+    const objectHeight = Math.max(bounds.extentY, 0.25);
+    const t = Math.min(Math.max((waterHeight - minY) / objectHeight, 0), 1);
+    return Math.sin(t * Math.PI);
+  }
+
+  private computeIslandShorelineFactor(bounds: {
+    min: Vector3;
+    extentY: number;
+  }, waterHeight: number, bandWidthScale: number): number {
+    const shorelineBand = Math.max(bounds.extentY * bandWidthScale, 0.45);
+    const shorelineMin = bounds.min.y;
+    const shorelineMax = shorelineMin + shorelineBand;
+
+    if (waterHeight <= shorelineMin || waterHeight >= shorelineMax) {
+      return 0;
+    }
+
+    const t = Math.min(Math.max((waterHeight - shorelineMin) / shorelineBand, 0), 1);
+    return Math.sin(t * Math.PI);
   }
 
   private updateProxySphereVisibility(): void {
@@ -563,14 +604,16 @@ export class VisualOcean {
     const boatYOffset = this.parameterState.boatYOffset ?? 0.4;
     const islandYOffset = this.parameterState.islandYOffset ?? 0;
 
-    if (this.boatCollisionSphere) {
-      this.boatCollisionSphere.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
-      this.boatCollisionSphere.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
-      this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
-    } else {
-      this.boatCollisionCenter.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
-      this.boatCollisionCenter.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
-      this.boatCollisionCenter.y = boatYOffset + Math.sin(this.elapsedTime * (0.85 + windSpeed * 0.45)) * bobAmount;
+    if (this.collisionMode === 1) {
+      if (this.boatCollisionSphere) {
+        this.boatCollisionSphere.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
+        this.boatCollisionSphere.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
+        this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
+      } else {
+        this.boatCollisionCenter.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
+        this.boatCollisionCenter.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
+        this.boatCollisionCenter.y = boatYOffset + Math.sin(this.elapsedTime * (0.85 + windSpeed * 0.45)) * bobAmount;
+      }
     }
 
     if (this.islandRoot) {
@@ -583,7 +626,9 @@ export class VisualOcean {
       this.islandCollisionCenter.y = islandYOffset;
     }
 
-    this.autoCenterGlbsToSpheres();
+    if (this.collisionMode === 1) {
+      this.autoCenterGlbsToSpheres();
+    }
 
     if (this.collisionMode === 0) {
       // === GLB Geometry Mode: derive collision center & radius strictly from GLB mesh bounds ===
@@ -592,32 +637,41 @@ export class VisualOcean {
 
       // Boat: use GLB bounds if available, else use scale-based fallback (but NOT sphere position)
       if (boatBounds) {
-        this.boatCollisionCenter.copyFrom(boatBounds.center);
+        const boatWaterHeight = this.getWaveHeightAt(boatBounds.center.x, boatBounds.center.z);
+        this.boatCollisionCenter.set(boatBounds.center.x, boatWaterHeight, boatBounds.center.z);
         const hullRadius = Math.max(boatBounds.extentX, boatBounds.extentZ) * 0.42;
         this.boatCollisionRadius = Math.max(0.45, hullRadius);
+        this.boatIntersectionFactor = this.computeIntersectionFactor(boatBounds, boatWaterHeight);
       } else {
         // Fallback: use boatRoot position if available, otherwise keep existing
         if (this.boatRoot) {
           this.boatCollisionCenter.copyFrom(this.boatRoot.position);
         }
         this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
+        const boatWaterHeight = this.getWaveHeightAt(this.boatCollisionCenter.x, this.boatCollisionCenter.z);
+        this.boatCollisionCenter.y = boatWaterHeight;
+        this.boatIntersectionFactor = Math.max(0, Math.min(1, (boatWaterHeight - boatYOffset + 0.6) / 1.5));
       }
 
       // Island: use GLB bounds if available, else use scale-based fallback (but NOT sphere position)
       if (islandBounds) {
-        this.islandCollisionCenter.set(
-          islandBounds.center.x,
-          islandYOffset + this.islandAlignmentOffset.y,
-          islandBounds.center.z
-        );
+        const shorelineBandWidth = Math.min(Math.max(this.parameterState.islandShorelineBandWidth ?? 0.28, 0.08), 0.8);
+        const shorelineFoamGain = Math.max(this.parameterState.islandShorelineFoamGain ?? 1, 0);
+        const islandWaterHeight = this.getWaveHeightAt(islandBounds.center.x, islandBounds.center.z);
+        this.islandCollisionCenter.set(islandBounds.center.x, islandWaterHeight, islandBounds.center.z);
         const shorelineRadius = (islandBounds.extentX + islandBounds.extentZ) * 0.25;
         this.islandCollisionRadius = Math.max(1.0, shorelineRadius);
+        const shorelineFactor = this.computeIslandShorelineFactor(islandBounds, islandWaterHeight, shorelineBandWidth);
+        this.islandIntersectionFactor = Math.min(1, shorelineFactor * shorelineFoamGain);
       } else {
         // Fallback: use islandRoot position if available, otherwise keep existing
         if (this.islandRoot) {
           this.islandCollisionCenter.copyFrom(this.islandRoot.position);
         }
         this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
+        const islandWaterHeight = this.getWaveHeightAt(this.islandCollisionCenter.x, this.islandCollisionCenter.z);
+        this.islandCollisionCenter.y = islandWaterHeight;
+        this.islandIntersectionFactor = Math.max(0, Math.min(1, (islandWaterHeight - islandYOffset + 1.2) / 2.5));
       }
     } else {
       // === Parent Physics Proxies Mode: derive collision center & radius from proxy sphere positions ===
@@ -632,6 +686,16 @@ export class VisualOcean {
       // Use scale-based radii for this mode
       this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
       this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
+      const boatWaterHeight = this.getWaveHeightAt(this.boatCollisionCenter.x, this.boatCollisionCenter.z);
+      const islandWaterHeight = this.getWaveHeightAt(this.islandCollisionCenter.x, this.islandCollisionCenter.z);
+      this.boatIntersectionFactor = Math.max(
+        0,
+        Math.min(1, (boatWaterHeight - (this.boatCollisionCenter.y - this.boatCollisionRadius * 0.45)) / Math.max(this.boatCollisionRadius, 0.1))
+      );
+      this.islandIntersectionFactor = Math.max(
+        0,
+        Math.min(1, (islandWaterHeight - (this.islandCollisionCenter.y - this.islandCollisionRadius * 0.35)) / Math.max(this.islandCollisionRadius, 0.1))
+      );
 
       // === Parent Physics Proxies Mode: update sphere positions and sizes ===
       if (this.boatCollisionSphere) {
@@ -658,6 +722,43 @@ export class VisualOcean {
     this.shaderRegistry.setUniform('boatCollisionRadius', this.boatCollisionRadius);
     this.shaderRegistry.setUniform('islandCollisionRadius', this.islandCollisionRadius);
     this.shaderRegistry.setUniform('collisionFoamStrength', this.collisionMode === 1 ? 1.2 : 1.0);
+    this.shaderRegistry.setUniform('boatIntersectionFactor', this.boatIntersectionFactor);
+    this.shaderRegistry.setUniform('islandIntersectionFactor', this.islandIntersectionFactor);
+  }
+
+  private updateUnderwaterState(deltaTime: number): void {
+    if (!this.scene || !this.camera || !this.shaderRegistry) {
+      return;
+    }
+
+    const enabled = (this.parameterState.underwaterEnabled ?? 1) >= 0.5;
+    const transitionDepth = Math.max(this.parameterState.underwaterTransitionDepth ?? 8, 0.25);
+    const fogDensity = Math.max(this.parameterState.underwaterFogDensity ?? 0.32, 0);
+    const horizonMix = Math.max(0, Math.min(1, this.parameterState.underwaterHorizonMix ?? 0.38));
+
+    const cameraY = this.camera.position.y;
+    const target = enabled ? Math.max(0, Math.min(1, (-cameraY + transitionDepth) / (transitionDepth * 2))) : 0;
+    const lerpRate = Math.min(1, deltaTime * 2.8);
+    this.underwaterFactor += (target - this.underwaterFactor) * lerpRate;
+
+    const u = this.underwaterFactor;
+    const underwaterColor = new Color4(
+      Math.max(0, Math.min(1, this.parameterState.underwaterColorR ?? 0.03)),
+      Math.max(0, Math.min(1, this.parameterState.underwaterColorG ?? 0.16)),
+      Math.max(0, Math.min(1, this.parameterState.underwaterColorB ?? 0.24)),
+      1
+    );
+    const surfaceColor = new Color4(0.1, 0.3, 0.5, 1);
+    this.scene.clearColor = Color4.Lerp(surfaceColor, underwaterColor, u * (0.6 + fogDensity * 0.4));
+
+    this.shaderRegistry.setUniform('underwaterEnabled', enabled ? 1 : 0);
+    this.shaderRegistry.setUniform('underwaterTransitionDepth', transitionDepth);
+    this.shaderRegistry.setUniform('underwaterFogDensity', fogDensity);
+    this.shaderRegistry.setUniform('underwaterHorizonMix', horizonMix);
+    this.shaderRegistry.setUniform('underwaterColorR', underwaterColor.r);
+    this.shaderRegistry.setUniform('underwaterColorG', underwaterColor.g);
+    this.shaderRegistry.setUniform('underwaterColorB', underwaterColor.b);
+    this.shaderRegistry.setUniform('underwaterFactor', u);
   }
 
   private verifyRenderStateAndRecover(): void {
@@ -756,6 +857,12 @@ export class VisualOcean {
       return;
     }
 
+    if (key === 'islandShorelineBandWidth' || key === 'islandShorelineFoamGain') {
+      this.updateCollisionSimulation();
+      this.applyCollisionUniforms();
+      return;
+    }
+
     if (key === 'waveAmplitude' || key === 'waveFrequency' || key === 'windDirection' || key === 'windSpeed') {
       this.updateCollisionSimulation();
       this.applyCollisionUniforms();
@@ -821,6 +928,8 @@ export class VisualOcean {
       const p = this.camera.position;
       this.shaderRegistry.setUniform('cameraPosition', [p.x, p.y, p.z]);
     }
+
+    this.updateUnderwaterState(deltaTime);
 
   }
 

@@ -23,6 +23,7 @@ describe('ShaderParameterFilter', () => {
 
     expect(filteredToToon).toEqual({
       waveAmplitude: 1.7,
+      foamIntensity: 0.9,
       cameraHeight: 55,
     });
   });
@@ -30,7 +31,8 @@ describe('ShaderParameterFilter', () => {
   test('isParameterSupportedForShader allows generic params and blocks unsupported controls', () => {
     expect(isParameterSupportedForShader('cameraHeight', 'toonWater')).toBe(true);
     expect(isParameterSupportedForShader('waveAmplitude', 'toonWater')).toBe(true);
-    expect(isParameterSupportedForShader('foamIntensity', 'toonWater')).toBe(false);
+    expect(isParameterSupportedForShader('foamIntensity', 'toonWater')).toBe(true);
+    expect(isParameterSupportedForShader('depthFadeDistance', 'toonWater')).toBe(false);
   });
 
   test('filtering keeps only supported shader controls for each water type', () => {

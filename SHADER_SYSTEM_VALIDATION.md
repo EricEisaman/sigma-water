@@ -26,10 +26,10 @@ The shader system is built on three core abstractions:
 ### 🔄 In Progress
 
 - [ ] Browser testing of shader switching
-- [ ] Validation of both shaders rendering correctly
+- [ ] Validation of all selectable shaders rendering correctly
 - [ ] Performance profiling (target: 60fps)
 - [ ] Console logging verification
-- [ ] WaterControls UI integration
+- [ ] WaterControls integration for crest/intersection/underwater controls
 
 ### 📋 TODO
 
@@ -129,10 +129,11 @@ Check console for:
 **Gerstner Waves Shader:**
 - [ ] Ocean surface animates smoothly
 - [ ] Wave height variations visible
-- [ ] Foam appears on wave crests
+- [ ] Crest foam appears and responds to threshold/intensity controls
 - [ ] Caustics pattern visible underwater
-- [ ] Boat collision foam renders
-- [ ] Island shoreline foam renders
+- [ ] Boat mesh-water intersection foam renders and tracks immersion
+- [ ] Island shoreline intersection foam renders and tracks immersion
+- [ ] Intersection foam can be disabled independently from crest foam
 
 **Ocean Waves Shader:**
 - [ ] Multi-octave wave pattern visible
@@ -140,6 +141,18 @@ Check console for:
 - [ ] Fresnel reflection effect
 - [ ] Sky color reflection
 - [ ] Smooth wave animation
+- [ ] Crest foam controls produce visible response
+- [ ] Intersection foam controls produce visible response
+
+**Toon Water Shader:**
+- [ ] Stylized banding remains stable after foam additions
+- [ ] Crest foam controls produce visible response
+- [ ] Intersection foam controls produce visible response
+
+**Underwater Transition:**
+- [ ] Above/below water transition is smooth across the waterline
+- [ ] Underwater tint/fog controls visibly affect result
+- [ ] Rapid camera oscillation near waterline does not flicker
 
 ## Shader Definition Template
 

@@ -5,12 +5,22 @@ uniform waveAmplitude: f32;
 uniform waveFrequency: f32;
 uniform windDirection: f32;
 uniform windSpeed: f32;
+uniform crestFoamEnabled: f32;
+uniform crestFoamThreshold: f32;
 uniform foamIntensity: f32;
 uniform foamWidth: f32;
 uniform foamNoiseFactor: f32;
 uniform foamCellScale: f32;
 uniform foamShredSlope: f32;
 uniform foamFizzWeight: f32;
+uniform intersectionFoamEnabled: f32;
+uniform intersectionFoamIntensity: f32;
+uniform intersectionFoamWidth: f32;
+uniform intersectionFoamFalloff: f32;
+uniform intersectionFoamNoise: f32;
+uniform intersectionFoamVerticalRange: f32;
+uniform boatIntersectionFactor: f32;
+uniform islandIntersectionFactor: f32;
 uniform causticIntensity: f32;
 uniform specularIntensity: f32;
 uniform depthFadeDistance: f32;
@@ -23,6 +33,14 @@ uniform collisionFoamStrength: f32;
 uniform skyReflectionMix: f32;
 uniform normalDetailStrength: f32;
 uniform normalDistanceFalloff: f32;
+uniform underwaterEnabled: f32;
+uniform underwaterTransitionDepth: f32;
+uniform underwaterFogDensity: f32;
+uniform underwaterHorizonMix: f32;
+uniform underwaterColorR: f32;
+uniform underwaterColorG: f32;
+uniform underwaterColorB: f32;
+uniform underwaterFactor: f32;
 
 varying vWorldPos : vec3<f32>;
 varying vNormal : vec3<f32>;
@@ -115,7 +133,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let normal = normalize(mix(input.vNormal, detailNormal, detailStrength));
   let ndl = max(dot(normal, lightDir), 0.0);
   let ndv = max(dot(normal, viewDir), 0.0);
-  let fresnel = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
+  let fresnel = 0.01 + 0.32 * pow(1.0 - ndv, 4.2);
   let slope = clamp(1.0 - normal.y, 0.0, 1.0);
   let heightBand = clamp(input.vWorldPos.y / max(amp * 2.6, 0.001) * 0.5 + 0.5, 0.0, 1.0);
 
@@ -134,15 +152,19 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let gloss = clamp(0.42 + specularStrength * 0.24 - slope * 0.18, 0.18, 0.92);
   let specPower = mix(42.0, 260.0, gloss);
   let specNorm = (specPower + 8.0) / (PI * 8.0);
-  let specular = pow(max(dot(normal, halfVec), 0.0), specPower) * specNorm * (0.22 + specularStrength * 1.15);
+  let specularRaw = pow(max(dot(normal, halfVec), 0.0), specPower) * specNorm * (0.06 + specularStrength * 0.28);
+  let specular = min(specularRaw, 0.18);
 
   let foamNoiseBlend = clamp(uniforms.foamNoiseFactor, 0.0, 1.0);
   let foamCellScale = max(uniforms.foamCellScale, 0.02);
   let foamShred = clamp(uniforms.foamShredSlope, 0.0, 1.0);
   let foamFizz = clamp(uniforms.foamFizzWeight, 0.0, 1.0);
+  let foamMaster = max(uniforms.foamIntensity, 0.0);
 
+  let crestEnabled = step(0.5, uniforms.crestFoamEnabled);
+  let crestThreshold = clamp(uniforms.crestFoamThreshold, 0.0, 0.98);
   let crestSeed = heightBand + slope * mix(0.72, 1.38, foamShred) + windSpd * 0.08;
-  let crestMask = smoothstep(0.36, clamp(0.66 + uniforms.foamWidth * 0.16, 0.5, 0.97), crestSeed);
+  let crestMask = crestEnabled * smoothstep(crestThreshold, clamp(crestThreshold + uniforms.foamWidth * 0.16, crestThreshold + 0.08, 0.99), crestSeed);
 
   let flowUv = input.vWorldPos.xz * (freq * (2.0 / foamCellScale));
   let advect = windDir * uniforms.time * (0.55 + windSpd) + crossDir * uniforms.time * 0.18;
@@ -159,13 +181,18 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let fizzPulse = sin((flowUv.x + flowUv.y) * 6.0 + uniforms.time * (2.6 + windSpd * 2.0)) * 0.5 + 0.5;
   let fizzGrain = smoothstep(0.68, 0.94, microNoise + fizzPulse * 0.36);
 
-  var foam = crestMask * shredMask * max(uniforms.foamIntensity, 0.0) * (0.3 + slope * 1.08);
-  foam += crestMask * fizzGrain * foamFizz * 0.24 * (0.55 + windSpd);
+  var foam = crestMask * shredMask * foamMaster * (0.3 + slope * 1.08);
+  foam += crestMask * fizzGrain * foamFizz * foamMaster * 0.24 * (0.55 + windSpd);
   foam *= 0.72 + cellular * 0.56;
 
   let collisionStrength = max(uniforms.collisionFoamStrength, 0.0);
+  let intersectionEnabled = step(0.5, uniforms.intersectionFoamEnabled);
+  let intersectionIntensity = max(uniforms.intersectionFoamIntensity, 0.0);
+  let intersectionNoiseMix = clamp(uniforms.intersectionFoamNoise, 0.0, 1.0);
+  let intersectionFalloff = max(uniforms.intersectionFoamFalloff, 0.1);
+  let verticalRange = max(uniforms.intersectionFoamVerticalRange, 0.1);
   let waveTightness = clamp(1.0 - amp * 0.42, 0.35, 1.0);
-  let baseWidth = mix(0.18, 0.62, clamp(uniforms.foamWidth * 0.34, 0.0, 1.0));
+  let baseWidth = mix(0.12, 0.72, clamp(uniforms.intersectionFoamWidth * 0.36, 0.0, 1.0));
   let boatWidth = max(baseWidth * waveTightness, 0.12) + uniforms.boatCollisionRadius * 0.045;
   let islandWidth = max(baseWidth * waveTightness, 0.14) + uniforms.islandCollisionRadius * 0.055;
   let boatRing = collisionRingMask(
@@ -173,21 +200,29 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     uniforms.boatCollisionCenter,
     max(uniforms.boatCollisionRadius, 0.0),
     boatWidth,
-    1.45 + amp * 0.55
+    verticalRange + amp * 0.25
   );
   let islandRing = collisionRingMask(
     input.vWorldPos,
     uniforms.islandCollisionCenter,
     max(uniforms.islandCollisionRadius, 0.0),
     islandWidth,
-    2.0 + amp * 0.75
+    verticalRange + amp * 0.45
   );
 
   let collisionNoiseUv = input.vWorldPos.xz * (freq * 2.8) + vec2<f32>(uniforms.time * 0.6, -uniforms.time * 0.42);
   let collisionNoise = fbm(collisionNoiseUv * 0.55) * 0.6 + fbm(collisionNoiseUv * 1.35 + vec2<f32>(8.7, 1.4)) * 0.4;
   let collisionMicro = fbm(collisionNoiseUv * 2.15 + vec2<f32>(-3.4, 11.2));
   let collisionDetail = smoothstep(0.22, 0.86, collisionNoise * 0.7 + collisionMicro * 0.3);
-  let collisionFoam = (boatRing * 1.35 + islandRing * 1.1) * collisionStrength * (0.48 + collisionDetail * 1.12);
+  let intersectionNoise = mix(collisionDetail, detailedNoise, intersectionNoiseMix);
+  let boatIntersection = boatRing * pow(max(uniforms.boatIntersectionFactor, 0.0), intersectionFalloff);
+  let islandIntersection = islandRing * pow(max(uniforms.islandIntersectionFactor, 0.0), intersectionFalloff);
+  let collisionFoam = (boatIntersection * 1.35 + islandIntersection * 1.1)
+    * collisionStrength
+    * intersectionEnabled
+    * intersectionIntensity
+    * foamMaster
+    * (0.48 + intersectionNoise * 1.12);
 
   foam += collisionFoam;
   foam = clamp(foam, 0.0, 1.35);
@@ -197,17 +232,28 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   waterColor += vec3<f32>(0.04, 0.09, 0.08) * caustic;
 
   let scatter = vec3<f32>(0.0, 0.09, 0.12) * pow(1.0 - ndv, 1.7) * (0.45 + amp * 0.55);
-  let skyMix = clamp(uniforms.skyReflectionMix, 0.0, 1.0);
+  let skyMix = clamp(uniforms.skyReflectionMix, 0.0, 0.45);
   let reflectionDir = reflect(-viewDir, normal);
   let skyColor = getSkyColor(reflectionDir);
   let reflectionTint = mix(vec3<f32>(0.72, 0.84, 0.95), skyColor, skyMix);
   let lit = waterColor * (0.18 + ndl * 0.82) + scatter;
-  let reflected = reflectionTint * fresnel;
+  let reflected = reflectionTint * fresnel * 0.12;
   let foamTone = smoothstep(0.2, 0.86, detailedNoise);
   let foamColor = mix(vec3<f32>(0.79, 0.86, 0.92), vec3<f32>(0.94, 0.97, 1.0), foamTone) * foam;
 
   let horizonGlow = vec3<f32>(0.04, 0.08, 0.12) * pow(1.0 - ndv, 2.2);
-  let color = lit + reflected + vec3<f32>(specular) + foamColor + horizonGlow;
-  fragmentOutputs.color = vec4<f32>(color, 1.0);
+  let colorRaw = lit + reflected + vec3<f32>(specular) + foamColor + horizonGlow;
+  let colorMapped = colorRaw / (vec3<f32>(1.0) + colorRaw * 1.8);
+  let luma = dot(colorMapped, vec3<f32>(0.2126, 0.7152, 0.0722));
+  let lumaClamp = min(1.0, 0.74 / max(luma, 0.0001));
+  let color = colorMapped * lumaClamp;
+  let underwaterEnabled = step(0.5, uniforms.underwaterEnabled);
+  let underwaterAmount = underwaterEnabled * clamp(uniforms.underwaterFactor, 0.0, 1.0);
+  let underwaterTint = vec3<f32>(uniforms.underwaterColorR, uniforms.underwaterColorG, uniforms.underwaterColorB);
+  let underwaterFog = clamp(uniforms.underwaterFogDensity, 0.0, 1.0) * (0.35 + (1.0 - ndv) * 0.65);
+  let horizonBlend = clamp(uniforms.underwaterHorizonMix, 0.0, 1.0) * pow(1.0 - ndv, 2.0);
+  let underwaterColor = mix(color, underwaterTint, underwaterFog) + underwaterTint * horizonBlend * 0.15;
+  let finalColor = mix(color, underwaterColor, underwaterAmount);
+  fragmentOutputs.color = vec4<f32>(finalColor, 1.0);
   return fragmentOutputs;
 }

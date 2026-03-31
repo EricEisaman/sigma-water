@@ -12,7 +12,7 @@ export class Boat {
   private heightmapData: Float32Array | null = null;
 
   constructor() {
-    this.position = { x: 0, y: 0, z: 0 };
+    this.position = { x:0, y: 0, z: 0 };
   }
 
   /**

@@ -444,8 +444,13 @@ export class VisualOcean {
 
   private updateProxySphereVisibility(): void {
     const show = this.showProxySpheres;
-    this.boatCollisionSphere?.setEnabled(show);
-    this.islandCollisionSphere?.setEnabled(show);
+    // Only affect visibility, keep spheres active as parent transform nodes
+    if (this.boatCollisionSphere) {
+      this.boatCollisionSphere.visibility = show ? 1.0 : 0.0;
+    }
+    if (this.islandCollisionSphere) {
+      this.islandCollisionSphere.visibility = show ? 1.0 : 0.0;
+    }
   }
 
   private getCurrentSphereCenters(): { boat: Vector3; island: Vector3 } {
@@ -462,7 +467,7 @@ export class VisualOcean {
     const boatDelta = boatBounds ? boatSphereCenter.subtract(boatBounds.center) : null;
     const islandDelta = islandBounds ? islandSphereCenter.subtract(islandBounds.center) : null;
 
-    console.log('🧭 GLB to Sphere offsets', {
+    console.log('🧭 GLB to Proxy offsets', {
       collisionMode: this.collisionMode,
       showProxySpheres: this.showProxySpheres,
       boat: {
@@ -581,61 +586,65 @@ export class VisualOcean {
     this.autoCenterGlbsToSpheres();
 
     if (this.collisionMode === 0) {
+      // === GLB Geometry Mode: derive collision center & radius strictly from GLB mesh bounds ===
       const boatBounds = this.getBoundsData(this.boatMeshes);
       const islandBounds = this.getBoundsData(this.islandMeshes);
 
+      // Boat: use GLB bounds if available, else use scale-based fallback (but NOT sphere position)
       if (boatBounds) {
-        if (this.boatCollisionSphere) {
-          this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
-        } else {
-          this.boatCollisionCenter.copyFrom(boatBounds.center);
-        }
-
+        this.boatCollisionCenter.copyFrom(boatBounds.center);
         const hullRadius = Math.max(boatBounds.extentX, boatBounds.extentZ) * 0.42;
         this.boatCollisionRadius = Math.max(0.45, hullRadius);
       } else {
-        if (this.boatCollisionSphere) {
-          this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
+        // Fallback: use boatRoot position if available, otherwise keep existing
+        if (this.boatRoot) {
+          this.boatCollisionCenter.copyFrom(this.boatRoot.position);
         }
         this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
       }
 
+      // Island: use GLB bounds if available, else use scale-based fallback (but NOT sphere position)
       if (islandBounds) {
         this.islandCollisionCenter.set(
           islandBounds.center.x,
           islandYOffset + this.islandAlignmentOffset.y,
           islandBounds.center.z
         );
-
         const shorelineRadius = (islandBounds.extentX + islandBounds.extentZ) * 0.25;
         this.islandCollisionRadius = Math.max(1.0, shorelineRadius);
       } else {
+        // Fallback: use islandRoot position if available, otherwise keep existing
         if (this.islandRoot) {
           this.islandCollisionCenter.copyFrom(this.islandRoot.position);
         }
         this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
       }
     } else {
+      // === Parent Physics Proxies Mode: derive collision center & radius from proxy sphere positions ===
+      // Boat: use proxy sphere position directly
       if (this.boatCollisionSphere) {
         this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
       }
-      if (this.islandRoot) {
-        this.islandCollisionCenter.copyFrom(this.islandRoot.position);
+      // Island: use proxy sphere position directly
+      if (this.islandCollisionSphere) {
+        this.islandCollisionCenter.copyFrom(this.islandCollisionSphere.position);
       }
+      // Use scale-based radii for this mode
       this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
       this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
-    }
 
-    if (this.boatCollisionSphere) {
-      this.boatCollisionSphere.position.copyFrom(this.boatCollisionCenter);
-      const boatDiameter = this.boatCollisionRadius * 2;
-      this.boatCollisionSphere.scaling = new Vector3(boatDiameter, boatDiameter, boatDiameter);
-    }
+      // === Parent Physics Proxies Mode: update sphere positions and sizes ===
+      if (this.boatCollisionSphere) {
+        this.boatCollisionSphere.position.copyFrom(this.boatCollisionCenter);
+        const boatDiameter = this.boatCollisionRadius * 2;
+        this.boatCollisionSphere.scaling = new Vector3(boatDiameter, boatDiameter, boatDiameter);
+      }
 
-    if (this.islandCollisionSphere) {
-      this.islandCollisionSphere.position.copyFrom(this.islandCollisionCenter);
-      const islandDiameter = this.islandCollisionRadius * 2;
-      this.islandCollisionSphere.scaling = new Vector3(islandDiameter, islandDiameter, islandDiameter);
+      if (this.islandCollisionSphere) {
+        this.islandCollisionSphere.position.copyFrom(this.islandCollisionCenter);
+        const islandDiameter = this.islandCollisionRadius * 2;
+        this.islandCollisionSphere.scaling = new Vector3(islandDiameter, islandDiameter, islandDiameter);
+      }
     }
   }
 
@@ -752,12 +761,12 @@ export class VisualOcean {
       this.applyCollisionUniforms();
     }
 
-    if (key === 'logSiblingOffsets' && value >= 0.5) {
+    if ((key === 'logSiblingOffsets' || key === 'logProxyOffsets') && value >= 0.5) {
       this.logGlbSphereOffsets();
       return;
     }
 
-    if (key === 'moveGlbsToSpheres' && value >= 0.5) {
+    if ((key === 'moveGlbsToSpheres' || key === 'moveGlbsToProxies') && value >= 0.5) {
       this.moveGlbsToSpheres();
       return;
     }

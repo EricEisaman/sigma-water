@@ -53,11 +53,12 @@ Only use Render Web Service when explicitly requested.
 - Ocean uses custom WGSL ShaderMaterial in VisualOcean.
 - There is a fallback StandardMaterial path for ocean when shader setup or render-time shader execution fails.
 - Boat and island load from GLB and are parented under explicit container TransformNodes.
-- Collision debug proxies exist as sibling spheres:
-   - boatCollisionSphere
-   - islandCollisionSphere
-- Collision source mode can switch between GLB geometry and sibling spheres.
-- Sphere-water foam ring cross-section radius is now computed CPU-side and passed as uniforms each frame.
+- Parent physics proxies are collision and animation sources:
+   - boatCollisionSphere (parent proxy)
+   - islandCollisionSphere (parent proxy)
+- GLB meshes are children of parent proxies and transform with them.
+- Collision source mode can switch between GLB geometry and parent physics proxies.
+- Collision cross-section radius is computed CPU-side based on active mode and passed as uniforms each frame.
 
 ## 6) Controls Contract
 
@@ -89,10 +90,10 @@ If UI shows but scene is blank:
 
 If foam behavior seems wrong:
 
-1. Verify collision mode in controls.
-2. Verify proxy sphere visibility state and actual Y values.
-3. Verify boat physics bypass in sphere mode is active.
-4. Verify sphere center and cross-radius uniforms update per frame.
+1. Verify collision mode in controls (GLB Geometry vs Parent Physics Proxies).
+2. Verify parent physics proxy visibility state and actual Y values.
+3. Verify parent physics proxy center derivation matches active collision mode.
+4. Verify collision center and cross-radius uniforms update per frame.
 
 ## 8) Safe Edit Zones
 
@@ -123,7 +124,7 @@ Before finishing production work:
 
 ## 10) Known Deferred Investigation
 
-- GLB visual rendering can still appear offset relative to sibling proxy spheres in some scenarios despite small logged center offsets.
+- GLB visual rendering can still appear offset relative to parent physics proxies in some scenarios despite small logged center offsets.
 - Defer deep transform-chain investigation unless explicitly prioritized over current feature/incident work.
 
 ---

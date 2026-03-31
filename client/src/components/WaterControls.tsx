@@ -1006,13 +1006,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                       className={collisionMode === 1 ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'text-slate-300 border-slate-600'}
                       onClick={() => handleCollisionModeChange(1)}
                     >
-                      Sibling Spheres
+                      Parent Physics Proxies
                     </Button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300">Proxy Sphere Visibility</label>
+                  <label className="text-sm font-medium text-slate-300">Parent Physics Proxy Visibility</label>
                   <div className="grid grid-cols-2 gap-2">
                     <Button
                       type="button"
@@ -1038,7 +1038,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   onClick={handleLogOffsets}
                   className="w-full bg-slate-700 hover:bg-slate-600 text-white"
                 >
-                  Log GLB to Sphere Offsets
+                  Log GLB to Proxy Offsets
                 </Button>
 
                 <Button
@@ -1046,7 +1046,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   onClick={handleMoveGlbsToSpheres}
                   className="w-full bg-emerald-700 hover:bg-emerald-600 text-white"
                 >
-                  Move GLBs To Spheres
+                  Move GLBs To Parent Physics Proxies
                 </Button>
               </div>
             )}

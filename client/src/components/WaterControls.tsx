@@ -393,6 +393,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('logSiblingOffsets', 1);
   }, [onParameterChange]);
 
+  const handleMoveGlbsToSpheres = useCallback(() => {
+    onParameterChange('moveGlbsToSpheres', 1);
+  }, [onParameterChange]);
+
   const handleCameraDistanceChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraDistance(val);
@@ -936,6 +940,14 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   className="w-full bg-slate-700 hover:bg-slate-600 text-white"
                 >
                   Log GLB to Sphere Offsets
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={handleMoveGlbsToSpheres}
+                  className="w-full bg-emerald-700 hover:bg-emerald-600 text-white"
+                >
+                  Move GLBs To Spheres
                 </Button>
               </div>
             )}

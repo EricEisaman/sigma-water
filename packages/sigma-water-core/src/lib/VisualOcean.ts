@@ -56,6 +56,23 @@ export class VisualOcean {
   private islandCollisionRadius = 4.0;
   private showProxySpheres = true;
   private collisionMode = 0;
+  private readonly baseCameraSpeed = 0.5;
+  private readonly speedBoostMultiplier = 4;
+  private isSpeedBoostActive = false;
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== 'Shift' || !this.camera || this.isSpeedBoostActive) {
+      return;
+    }
+    this.isSpeedBoostActive = true;
+    this.camera.speed = this.baseCameraSpeed * this.speedBoostMultiplier;
+  };
+  private readonly handleKeyUp = (event: KeyboardEvent): void => {
+    if (event.key !== 'Shift' || !this.camera) {
+      return;
+    }
+    this.isSpeedBoostActive = false;
+    this.camera.speed = this.baseCameraSpeed;
+  };
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -104,8 +121,11 @@ export class VisualOcean {
     this.camera.setTarget(Vector3.Zero());
     this.scene.activeCamera = this.camera;
     this.camera.attachControl(this.canvas, true);
-    this.camera.speed = 50;
+    this.camera.speed = this.baseCameraSpeed;
     this.camera.angularSensibility = 1000;
+
+    window.addEventListener('keydown', this.handleKeyDown);
+    window.addEventListener('keyup', this.handleKeyUp);
   }
 
   private async setupLighting(): Promise<void> {
@@ -575,6 +595,8 @@ export class VisualOcean {
     this.islandCollisionSphere?.dispose();
     this.boatCollisionSphere = null;
     this.islandCollisionSphere = null;
+    window.removeEventListener('keydown', this.handleKeyDown);
+    window.removeEventListener('keyup', this.handleKeyUp);
     this.scene?.dispose();
     this.engine?.dispose();
   }

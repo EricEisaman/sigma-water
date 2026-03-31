@@ -50,10 +50,11 @@ export class VisualOcean {
   private islandMeshes: AbstractMesh[] = [];
   private boatCollisionSphere: Mesh | null = null;
   private islandCollisionSphere: Mesh | null = null;
-  private boatCollisionCenter = new Vector3(0, 0.4, -12);
+  private boatCollisionCenter = new Vector3(-12, 0.4, -24);
   private islandCollisionCenter = new Vector3(22, 0, 10);
   private boatCollisionRadius = 2.2;
   private islandCollisionRadius = 4.0;
+  private boatVerticalVelocity = 0;
   private boatAlignmentOffset = new Vector3(0, 0, 0);
   private islandAlignmentOffset = new Vector3(0, 0, 0);
   private showProxySpheres = true;
@@ -215,17 +216,31 @@ export class VisualOcean {
     this.boatRoot = new TransformNode('boatRoot', this.scene);
     this.islandRoot = new TransformNode('islandRoot', this.scene);
 
-    this.boatRoot.position = new Vector3(0, this.parameterState.boatYOffset ?? 0.4, -12);
+    this.boatRoot.position = new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
     this.islandRoot.position = new Vector3(22, this.parameterState.islandYOffset ?? 0, 10);
 
     try {
       const boatResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', 'diving-boat.glb', this.scene);
       this.boatMeshes = boatResult.meshes.filter((m) => m.name !== '__root__');
-      this.boatMeshes.forEach((mesh) => {
-        if (!mesh.parent) {
-          mesh.parent = this.boatRoot;
-        }
-      });
+
+      const boatSceneRoot =
+        boatResult.transformNodes.find((n) => n.name === '__root__')
+        ?? boatResult.meshes.find((n) => n.name === '__root__')
+        ?? boatResult.transformNodes[0]
+        ?? boatResult.meshes[0];
+
+      if (boatSceneRoot) {
+        boatSceneRoot.parent = this.boatRoot;
+      } else {
+        this.boatMeshes.forEach((mesh) => {
+          if (!mesh.parent) {
+            mesh.parent = this.boatRoot;
+          }
+        });
+      }
+
+      this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, this.boatRoot.position.clone());
+
       console.log('✅ Boat GLB loaded');
     } catch (error) {
       console.warn('⚠️ Boat GLB load failed, using proxy-only boat collision', error);
@@ -239,6 +254,7 @@ export class VisualOcean {
           mesh.parent = this.islandRoot;
         }
       });
+      this.alignRootToBoundsCenter(this.islandRoot, this.islandMeshes, this.islandRoot.position.clone());
       console.log('✅ Island GLB loaded');
     } catch (error) {
       console.warn('⚠️ Island GLB load failed, using proxy-only island collision', error);
@@ -293,8 +309,12 @@ export class VisualOcean {
     const rightHeight = this.getWaveHeightAt(boatX + boatWidth * 0.5, boatZ);
 
     const targetY = centerHeight + baseOffset;
-    const smoothing = Math.min(deltaTime * 4.5, 1.0);
-    this.boatRoot.position.y += (targetY - this.boatRoot.position.y) * smoothing;
+    const springK = 9.0;
+    const damping = 4.2;
+    const displacement = targetY - this.boatRoot.position.y;
+    const acceleration = displacement * springK - this.boatVerticalVelocity * damping;
+    this.boatVerticalVelocity += acceleration * deltaTime;
+    this.boatRoot.position.y += this.boatVerticalVelocity * deltaTime;
 
     const pitch = Math.atan2(frontHeight - backHeight, boatLength) * 0.72;
     const roll = Math.atan2(rightHeight - leftHeight, boatWidth) * 0.68;
@@ -321,7 +341,14 @@ export class VisualOcean {
     }
   }
 
-  private tryUpdateFromBounds(meshes: AbstractMesh[], outCenter: Vector3): number | null {
+  private getBoundsData(meshes: AbstractMesh[]): {
+    min: Vector3;
+    max: Vector3;
+    center: Vector3;
+    extentX: number;
+    extentY: number;
+    extentZ: number;
+  } | null {
     if (meshes.length === 0) {
       return null;
     }
@@ -350,10 +377,29 @@ export class VisualOcean {
       return null;
     }
 
-    outCenter.set((minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5);
-    const extentX = maxX - minX;
-    const extentZ = maxZ - minZ;
-    return Math.max(extentX, extentZ) * 0.5;
+    const center = new Vector3((minX + maxX) * 0.5, (minY + maxY) * 0.5, (minZ + maxZ) * 0.5);
+    return {
+      min: new Vector3(minX, minY, minZ),
+      max: new Vector3(maxX, maxY, maxZ),
+      center,
+      extentX: maxX - minX,
+      extentY: maxY - minY,
+      extentZ: maxZ - minZ,
+    };
+  }
+
+  private alignRootToBoundsCenter(root: TransformNode | null, meshes: AbstractMesh[], targetCenter: Vector3): void {
+    if (!root) {
+      return;
+    }
+
+    const bounds = this.getBoundsData(meshes);
+    if (!bounds) {
+      return;
+    }
+
+    const delta = targetCenter.subtract(bounds.center);
+    root.position.addInPlace(delta);
   }
 
   private updateProxySphereVisibility(): void {
@@ -370,27 +416,28 @@ export class VisualOcean {
 
   private logGlbSphereOffsets(): void {
     const { boat: boatSphereCenter, island: islandSphereCenter } = this.getCurrentSphereCenters();
-    const boatGlbCenter = new Vector3();
-    const islandGlbCenter = new Vector3();
+    const boatBounds = this.getBoundsData(this.boatMeshes);
+    const islandBounds = this.getBoundsData(this.islandMeshes);
 
-    const boatRadius = this.tryUpdateFromBounds(this.boatMeshes, boatGlbCenter);
-    const islandRadius = this.tryUpdateFromBounds(this.islandMeshes, islandGlbCenter);
-
-    const boatDelta = boatRadius !== null ? boatSphereCenter.subtract(boatGlbCenter) : null;
-    const islandDelta = islandRadius !== null ? islandSphereCenter.subtract(islandGlbCenter) : null;
+    const boatDelta = boatBounds ? boatSphereCenter.subtract(boatBounds.center) : null;
+    const islandDelta = islandBounds ? islandSphereCenter.subtract(islandBounds.center) : null;
 
     console.log('🧭 GLB to Sphere offsets', {
       collisionMode: this.collisionMode,
       showProxySpheres: this.showProxySpheres,
       boat: {
         sphereCenter: boatSphereCenter.asArray(),
-        glbCenter: boatRadius !== null ? boatGlbCenter.asArray() : null,
+        glbCenter: boatBounds ? boatBounds.center.asArray() : null,
+        glbMin: boatBounds ? boatBounds.min.asArray() : null,
+        glbMax: boatBounds ? boatBounds.max.asArray() : null,
         delta: boatDelta ? boatDelta.asArray() : null,
         deltaLength: boatDelta ? boatDelta.length() : null,
       },
       island: {
         sphereCenter: islandSphereCenter.asArray(),
-        glbCenter: islandRadius !== null ? islandGlbCenter.asArray() : null,
+        glbCenter: islandBounds ? islandBounds.center.asArray() : null,
+        glbMin: islandBounds ? islandBounds.min.asArray() : null,
+        glbMax: islandBounds ? islandBounds.max.asArray() : null,
         delta: islandDelta ? islandDelta.asArray() : null,
         deltaLength: islandDelta ? islandDelta.length() : null,
       },
@@ -401,20 +448,21 @@ export class VisualOcean {
 
   private moveGlbsToSpheres(): void {
     const { boat: boatSphereCenter, island: islandSphereCenter } = this.getCurrentSphereCenters();
-    const boatGlbCenter = new Vector3();
-    const islandGlbCenter = new Vector3();
+    const boatBounds = this.getBoundsData(this.boatMeshes);
+    const islandBounds = this.getBoundsData(this.islandMeshes);
 
-    const boatHasBounds = this.tryUpdateFromBounds(this.boatMeshes, boatGlbCenter) !== null;
-    const islandHasBounds = this.tryUpdateFromBounds(this.islandMeshes, islandGlbCenter) !== null;
+    const boatHasBounds = !!boatBounds;
+    const islandHasBounds = !!islandBounds;
 
-    if (boatHasBounds && this.boatRoot) {
-      const delta = boatSphereCenter.subtract(boatGlbCenter);
+    if (boatHasBounds && boatBounds && this.boatRoot) {
+      const delta = boatSphereCenter.subtract(boatBounds.center);
+      delta.y = 0;
       this.boatAlignmentOffset.addInPlace(delta);
       this.boatRoot.position.addInPlace(delta);
     }
 
-    if (islandHasBounds && this.islandRoot) {
-      const delta = islandSphereCenter.subtract(islandGlbCenter);
+    if (islandHasBounds && islandBounds && this.islandRoot) {
+      const delta = islandSphereCenter.subtract(islandBounds.center);
       this.islandAlignmentOffset.addInPlace(delta);
       this.islandRoot.position.addInPlace(delta);
     }
@@ -422,6 +470,46 @@ export class VisualOcean {
     this.updateCollisionSimulation();
     this.applyCollisionUniforms();
     this.logGlbSphereOffsets();
+  }
+
+  private autoCenterGlbsToSpheres(): void {
+    if (this.collisionMode !== 0) {
+      return;
+    }
+
+    const boatTarget = this.boatCollisionSphere?.position.clone();
+    const islandTarget = this.islandCollisionSphere?.position.clone();
+
+    if (boatTarget && this.boatRoot) {
+      const boatBounds = this.getBoundsData(this.boatMeshes);
+      if (boatBounds) {
+        const delta = boatTarget.subtract(boatBounds.center);
+        delta.y = 0;
+        const maxStep = 0.2;
+        if (delta.length() > maxStep) {
+          delta.normalize().scaleInPlace(maxStep);
+        }
+        if (delta.lengthSquared() > 0.0001) {
+          this.boatAlignmentOffset.addInPlace(delta);
+          this.boatRoot.position.addInPlace(delta);
+        }
+      }
+    }
+
+    if (islandTarget && this.islandRoot) {
+      const islandBounds = this.getBoundsData(this.islandMeshes);
+      if (islandBounds) {
+        const delta = islandTarget.subtract(islandBounds.center);
+        const maxStep = 0.2;
+        if (delta.length() > maxStep) {
+          delta.normalize().scaleInPlace(maxStep);
+        }
+        if (delta.lengthSquared() > 0.0001) {
+          this.islandAlignmentOffset.addInPlace(delta);
+          this.islandRoot.position.addInPlace(delta);
+        }
+      }
+    }
   }
 
   private updateCollisionSimulation(): void {
@@ -433,12 +521,13 @@ export class VisualOcean {
     const islandYOffset = this.parameterState.islandYOffset ?? 0;
 
     if (this.boatRoot) {
-      this.boatRoot.position.x = Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75 + this.boatAlignmentOffset.x;
-      this.boatRoot.position.z = -12 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55 + this.boatAlignmentOffset.z;
-      this.boatRoot.position.y += Math.sin(this.elapsedTime * (0.85 + windSpeed * 0.45)) * bobAmount * 0.02;
+      this.boatRoot.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75 + this.boatAlignmentOffset.x;
+      this.boatRoot.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55 + this.boatAlignmentOffset.z;
+      this.boatRoot.position.y += this.boatAlignmentOffset.y;
+      this.boatAlignmentOffset.y = 0;
     } else {
-      this.boatCollisionCenter.x = Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
-      this.boatCollisionCenter.z = -12 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
+      this.boatCollisionCenter.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
+      this.boatCollisionCenter.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
       this.boatCollisionCenter.y = boatYOffset + Math.sin(this.elapsedTime * (0.85 + windSpeed * 0.45)) * bobAmount;
     }
 
@@ -452,12 +541,53 @@ export class VisualOcean {
       this.islandCollisionCenter.y = islandYOffset;
     }
 
-    if (this.collisionMode === 0) {
-      const boatRadiusFromBounds = this.tryUpdateFromBounds(this.boatMeshes, this.boatCollisionCenter);
-      const islandRadiusFromBounds = this.tryUpdateFromBounds(this.islandMeshes, this.islandCollisionCenter);
+    this.autoCenterGlbsToSpheres();
 
-      this.boatCollisionRadius = boatRadiusFromBounds ?? Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
-      this.islandCollisionRadius = islandRadiusFromBounds ?? Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
+    if (this.collisionMode === 0) {
+      const boatBounds = this.getBoundsData(this.boatMeshes);
+      const islandBounds = this.getBoundsData(this.islandMeshes);
+
+      if (boatBounds) {
+        const waveContactY = this.getWaveHeightAt(boatBounds.center.x, boatBounds.center.z) + boatYOffset;
+        const hullContactY = boatBounds.min.y + boatBounds.extentY * 0.18;
+        if (this.boatRoot) {
+          // Keep the rendered boat above waterline while preserving wave-following buoyancy.
+          const minBoatY = waveContactY - boatYOffset - 0.25;
+          if (this.boatRoot.position.y < minBoatY) {
+            this.boatRoot.position.y = minBoatY;
+            this.boatVerticalVelocity = Math.max(this.boatVerticalVelocity, 0);
+          }
+        }
+        this.boatCollisionCenter.set(
+          boatBounds.center.x,
+          Math.min(hullContactY, waveContactY + 0.35),
+          boatBounds.center.z
+        );
+
+        const hullRadius = Math.max(boatBounds.extentX, boatBounds.extentZ) * 0.42;
+        this.boatCollisionRadius = Math.max(0.45, hullRadius);
+      } else {
+        if (this.boatRoot) {
+          this.boatCollisionCenter.copyFrom(this.boatRoot.position);
+        }
+        this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
+      }
+
+      if (islandBounds) {
+        this.islandCollisionCenter.set(
+          islandBounds.center.x,
+          islandYOffset + this.islandAlignmentOffset.y,
+          islandBounds.center.z
+        );
+
+        const shorelineRadius = (islandBounds.extentX + islandBounds.extentZ) * 0.25;
+        this.islandCollisionRadius = Math.max(1.0, shorelineRadius);
+      } else {
+        if (this.islandRoot) {
+          this.islandCollisionCenter.copyFrom(this.islandRoot.position);
+        }
+        this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
+      }
     } else {
       if (this.boatRoot) {
         this.boatCollisionCenter.copyFrom(this.boatRoot.position);

@@ -55,7 +55,6 @@ export class VisualOcean {
   private boatCollisionRadius = 2.2;
   private islandCollisionRadius = 4.0;
   private boatVerticalVelocity = 0;
-  private boatAlignmentOffset = new Vector3(0, 0, 0);
   private islandAlignmentOffset = new Vector3(0, 0, 0);
   private showProxySpheres = true;
   private collisionMode = 0;
@@ -157,6 +156,10 @@ export class VisualOcean {
     this.camera.attachControl(this.canvas, true);
     this.camera.speed = this.baseCameraSpeed;
     this.camera.angularSensibility = 1000;
+    this.camera.keysUp = [38, 87];
+    this.camera.keysDown = [40, 83];
+    this.camera.keysLeft = [37, 65];
+    this.camera.keysRight = [39, 68];
 
     window.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('keyup', this.handleKeyUp);
@@ -272,6 +275,12 @@ export class VisualOcean {
 
       this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, this.boatRoot.position.clone());
 
+      if (this.boatCollisionSphere) {
+        const boatWorldPos = this.boatRoot.position.clone();
+        this.boatRoot.parent = this.boatCollisionSphere;
+        this.boatRoot.position = boatWorldPos.subtract(this.boatCollisionSphere.position);
+      }
+
       console.log('✅ Boat GLB loaded');
     } catch (error) {
       console.warn('⚠️ Boat GLB load failed, using proxy-only boat collision', error);
@@ -322,16 +331,16 @@ export class VisualOcean {
   }
 
   private applyBoatFlotation(deltaTime: number): void {
-    if (!this.boatRoot) {
+    if (!this.boatRoot || !this.boatCollisionSphere) {
       return;
     }
 
-    const boatX = this.boatRoot.position.x;
-    const boatZ = this.boatRoot.position.z;
+    const boatX = this.boatCollisionSphere.position.x;
+    const boatZ = this.boatCollisionSphere.position.z;
 
     const boatLength = 8.5;
     const boatWidth = 3.2;
-    const baseOffset = (this.parameterState.boatYOffset ?? 0.4) + this.boatAlignmentOffset.y;
+    const baseOffset = this.parameterState.boatYOffset ?? 0.4;
 
     const centerHeight = this.getWaveHeightAt(boatX, boatZ);
     const frontHeight = this.getWaveHeightAt(boatX, boatZ + boatLength * 0.5);
@@ -342,10 +351,10 @@ export class VisualOcean {
     const targetY = centerHeight + baseOffset;
     const springK = 9.0;
     const damping = 4.2;
-    const displacement = targetY - this.boatRoot.position.y;
+    const displacement = targetY - this.boatCollisionSphere.position.y;
     const acceleration = displacement * springK - this.boatVerticalVelocity * damping;
     this.boatVerticalVelocity += acceleration * deltaTime;
-    this.boatRoot.position.y += this.boatVerticalVelocity * deltaTime;
+    this.boatCollisionSphere.position.y += this.boatVerticalVelocity * deltaTime;
 
     const pitch = Math.atan2(frontHeight - backHeight, boatLength) * 0.72;
     const roll = Math.atan2(rightHeight - leftHeight, boatWidth) * 0.68;
@@ -488,7 +497,6 @@ export class VisualOcean {
     if (boatHasBounds && boatBounds && this.boatRoot) {
       const delta = boatSphereCenter.subtract(boatBounds.center);
       delta.y = 0;
-      this.boatAlignmentOffset.addInPlace(delta);
       this.boatRoot.position.addInPlace(delta);
     }
 
@@ -521,7 +529,6 @@ export class VisualOcean {
           delta.normalize().scaleInPlace(maxStep);
         }
         if (delta.lengthSquared() > 0.0001) {
-          this.boatAlignmentOffset.addInPlace(delta);
           this.boatRoot.position.addInPlace(delta);
         }
       }
@@ -551,11 +558,10 @@ export class VisualOcean {
     const boatYOffset = this.parameterState.boatYOffset ?? 0.4;
     const islandYOffset = this.parameterState.islandYOffset ?? 0;
 
-    if (this.boatRoot) {
-      this.boatRoot.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75 + this.boatAlignmentOffset.x;
-      this.boatRoot.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55 + this.boatAlignmentOffset.z;
-      this.boatRoot.position.y += this.boatAlignmentOffset.y;
-      this.boatAlignmentOffset.y = 0;
+    if (this.boatCollisionSphere) {
+      this.boatCollisionSphere.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
+      this.boatCollisionSphere.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
+      this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
     } else {
       this.boatCollisionCenter.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
       this.boatCollisionCenter.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
@@ -579,27 +585,17 @@ export class VisualOcean {
       const islandBounds = this.getBoundsData(this.islandMeshes);
 
       if (boatBounds) {
-        const waveContactY = this.getWaveHeightAt(boatBounds.center.x, boatBounds.center.z) + boatYOffset;
-        const hullContactY = boatBounds.min.y + boatBounds.extentY * 0.18;
-        if (this.boatRoot) {
-          // Keep the rendered boat above waterline while preserving wave-following buoyancy.
-          const minBoatY = waveContactY - boatYOffset - 0.25;
-          if (this.boatRoot.position.y < minBoatY) {
-            this.boatRoot.position.y = minBoatY;
-            this.boatVerticalVelocity = Math.max(this.boatVerticalVelocity, 0);
-          }
+        if (this.boatCollisionSphere) {
+          this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
+        } else {
+          this.boatCollisionCenter.copyFrom(boatBounds.center);
         }
-        this.boatCollisionCenter.set(
-          boatBounds.center.x,
-          Math.min(hullContactY, waveContactY + 0.35),
-          boatBounds.center.z
-        );
 
         const hullRadius = Math.max(boatBounds.extentX, boatBounds.extentZ) * 0.42;
         this.boatCollisionRadius = Math.max(0.45, hullRadius);
       } else {
-        if (this.boatRoot) {
-          this.boatCollisionCenter.copyFrom(this.boatRoot.position);
+        if (this.boatCollisionSphere) {
+          this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
         }
         this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
       }
@@ -620,8 +616,8 @@ export class VisualOcean {
         this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
       }
     } else {
-      if (this.boatRoot) {
-        this.boatCollisionCenter.copyFrom(this.boatRoot.position);
+      if (this.boatCollisionSphere) {
+        this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
       }
       if (this.islandRoot) {
         this.islandCollisionCenter.copyFrom(this.islandRoot.position);
@@ -816,6 +812,7 @@ export class VisualOcean {
       const p = this.camera.position;
       this.shaderRegistry.setUniform('cameraPosition', [p.x, p.y, p.z]);
     }
+
   }
 
   public dispose(): void {

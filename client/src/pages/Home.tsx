@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { VisualOcean } from "@sigma-water/core";
 import { WaterControls } from "@/components/WaterControls";
-import { type BoatModelId, type IslandModelId, WaterType, serializeWaterType } from "@sigma-water/core";
-
-type SigmaWaterWindow = Window & {
-  __sigmaWaterOcean?: VisualOcean;
-};
+import { VisualOcean, type BoatModelId, type IslandModelId, WaterType, serializeWaterType, BOAT_MODEL_OPTIONS, ISLAND_MODEL_OPTIONS } from "@sigma-water/core";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -13,31 +8,26 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [boatModel, setBoatModel] = useState<BoatModelId>('divingBoat');
+  const [islandModel, setIslandModel] = useState<IslandModelId>('boathouseIsland');
+  const [collisionMode, setCollisionMode] = useState(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     let disposed = false;
-    let removeResizeListener: (() => void) | null = null;
+    let oceanInstance: VisualOcean | null = null;
 
     const initializeScene = async () => {
       try {
         console.log("🎬 SIGGRAPH Ocean Renderer - Initializing...");
 
-        const win = window as SigmaWaterWindow;
-        if (win.__sigmaWaterOcean) {
-          win.__sigmaWaterOcean.dispose();
-          win.__sigmaWaterOcean = undefined;
-        }
-
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-
         // Create and initialize ocean
         const ocean = new VisualOcean(canvas, {
           assetBaseUrl: '/assets',
-          enableGlobalListeners: true,
+          // React owns listener lifecycle in this integration layer.
+          enableGlobalListeners: false,
         });
         await ocean.initialize();
 
@@ -46,21 +36,21 @@ export default function Home() {
           return;
         }
 
-        win.__sigmaWaterOcean = ocean;
+        oceanInstance = ocean;
         oceanRef.current = ocean;
 
         setInitialized(true);
         setLoading(false);
         console.log("✅ Ocean scene initialized successfully");
 
-        // Handle window resize
+        // Babylon blessed pattern: canvas host owns resize subscription and cleanup.
         const handleResize = () => {
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
+          ocean.resize();
         };
 
+        handleResize();
         window.addEventListener("resize", handleResize);
-        removeResizeListener = () => {
+        return () => {
           window.removeEventListener("resize", handleResize);
         };
       } catch (err) {
@@ -69,20 +59,19 @@ export default function Home() {
         console.error("❌ Initialization error:", err);
         setError(errorMsg);
         setLoading(false);
+        return () => {};
       }
     };
 
-    initializeScene();
+    let removeResizeListener: (() => void) | undefined;
+    void initializeScene().then((cleanup) => {
+      removeResizeListener = cleanup;
+    });
 
     return () => {
-      const win = window as SigmaWaterWindow;
       disposed = true;
       removeResizeListener?.();
-      const currentOcean = oceanRef.current;
-      oceanRef.current?.dispose();
-      if (win.__sigmaWaterOcean === currentOcean) {
-        win.__sigmaWaterOcean = undefined;
-      }
+      oceanInstance?.dispose();
       oceanRef.current = null;
     };
   }, []);
@@ -115,12 +104,14 @@ export default function Home() {
     if (oceanRef.current) {
       void oceanRef.current.setBoatModel(modelId);
     }
+    setBoatModel(modelId);
   };
 
   const handleIslandModelChange = (modelId: IslandModelId) => {
     if (oceanRef.current) {
       void oceanRef.current.setIslandModel(modelId);
     }
+    setIslandModel(modelId);
   };
 
   return (
@@ -196,6 +187,7 @@ export default function Home() {
           onShaderChange={handleShaderChange}
           onBoatModelChange={handleBoatModelChange}
           onIslandModelChange={handleIslandModelChange}
+          onCollisionModeChange={setCollisionMode}
         />
       )}
 
@@ -205,6 +197,15 @@ export default function Home() {
           <p className="text-gray-300">
             💡 <strong>Tip:</strong> Adjust parameters in the control panel for real-time changes
           </p>
+        </div>
+      )}
+
+      {/* Status line */}
+      {initialized && !error && (
+        <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white p-3 rounded-lg z-40 text-xs border border-white/10 font-mono space-y-1">
+          <p className="text-amber-400">⚓ {BOAT_MODEL_OPTIONS.find(o => o.id === boatModel)?.label ?? boatModel}</p>
+          <p className="text-emerald-400">🏝 {ISLAND_MODEL_OPTIONS.find(o => o.id === islandModel)?.label ?? islandModel}</p>
+          <p className="text-slate-300">🔵 {collisionMode === 0 ? 'GLB Geometry' : 'Physics Proxies'}</p>
         </div>
       )}
     </div>

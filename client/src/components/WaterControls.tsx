@@ -24,6 +24,7 @@ interface WaterControlsProps {
   onShaderChange?: (waterType: WaterType) => void;
   onBoatModelChange?: (modelId: BoatModelId) => void;
   onIslandModelChange?: (modelId: IslandModelId) => void;
+  onCollisionModeChange?: (mode: number) => void;
 }
 
 type ControlValues = {
@@ -214,7 +215,7 @@ function getInitialValues(): ControlValues {
   return next;
 }
 
-export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange, onBoatModelChange, onIslandModelChange }: WaterControlsProps) {
+export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange }: WaterControlsProps) {
   const initialValues = useState<ControlValues>(() => getInitialValues())[0];
 
   // Wave parameters
@@ -334,6 +335,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('islandShorelineBandWidth', initialValues.islandShorelineBandWidth);
     onParameterChange('islandShorelineFoamGain', initialValues.islandShorelineFoamGain);
     onParameterChange('collisionMode', initialValues.collisionMode);
+    onCollisionModeChange?.(initialValues.collisionMode);
     onParameterChange('showProxySpheres', initialValues.showProxySpheres);
 
     const position = orbitCameraPosition(
@@ -343,7 +345,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       initialValues.cameraHeight
     );
     onCameraChange(position.x, position.y, position.z);
-  }, [initialValues, onParameterChange, onCameraChange, onBoatModelChange, onIslandModelChange]);
+  }, [initialValues, onParameterChange, onCameraChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -686,7 +688,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCollisionModeChange = useCallback((mode: number) => {
     setCollisionMode(mode);
     onParameterChange('collisionMode', mode);
-  }, [onParameterChange]);
+    onCollisionModeChange?.(mode);
+  }, [onParameterChange, onCollisionModeChange]);
 
   const handleProxyVisibilityChange = useCallback((enabled: number) => {
     setShowProxySpheres(enabled);
@@ -782,6 +785,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('islandShorelineBandWidth', 0.28);
     onParameterChange('islandShorelineFoamGain', 1.0);
     onParameterChange('collisionMode', 0);
+    onCollisionModeChange?.(0);
     onParameterChange('showProxySpheres', 1);
     
     // Reset shader
@@ -791,7 +795,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     
     const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, 0, 100, 50);
     onCameraChange(position.x, position.y, position.z);
-  }, [onParameterChange, onCameraChange, onShaderChange, onBoatModelChange, onIslandModelChange]);
+  }, [onParameterChange, onCameraChange, onShaderChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange]);
 
   const handleShaderChange = useCallback((shaderName: string) => {
     const newWaterType = parseWaterType(shaderName);

@@ -1074,6 +1074,10 @@ export class VisualOcean {
     this.camera.setTarget(Vector3.Zero());
   }
 
+  public resize(): void {
+    this.engine?.resize();
+  }
+
   public getCurrentShader(): string {
     return this.currentShaderName;
   }

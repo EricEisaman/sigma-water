@@ -18,7 +18,22 @@ interface WaterControlsProps {
   onCameraChange: (x: number, y: number, z: number) => void;
   onTopDownView: () => void;
   onShaderChange?: (waterType: WaterType) => void;
+  onBoatModelChange?: (modelId: BoatModelId) => void;
+  onIslandModelChange?: (modelId: IslandModelId) => void;
 }
+
+type BoatModelId = 'divingBoat' | 'zodiacBoat';
+type IslandModelId = 'boathouseIsland' | 'lighthouseIsland';
+
+const BOAT_MODEL_OPTIONS: Array<{ id: BoatModelId; label: string }> = [
+  { id: 'divingBoat', label: 'Diving Boat' },
+  { id: 'zodiacBoat', label: 'Zodiac Boat' },
+];
+
+const ISLAND_MODEL_OPTIONS: Array<{ id: IslandModelId; label: string }> = [
+  { id: 'boathouseIsland', label: 'Boathouse Island' },
+  { id: 'lighthouseIsland', label: 'Lighthouse Island' },
+];
 
 type ControlValues = {
   waveAmplitude: number;
@@ -53,8 +68,10 @@ type ControlValues = {
   depthFadeDistance: number;
   depthFadeExponent: number;
   specularIntensity: number;
+  boatModel: BoatModelId;
   boatScale: number;
   boatYOffset: number;
+  islandModel: IslandModelId;
   islandScale: number;
   islandYOffset: number;
   islandShorelineBandWidth: number;
@@ -102,8 +119,10 @@ const DEFAULT_VALUES: ControlValues = {
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
   specularIntensity: 1.0,
+  boatModel: 'divingBoat',
   boatScale: 1,
   boatYOffset: 0.4,
+  islandModel: 'boathouseIsland',
   islandScale: 1,
   islandYOffset: 0,
   islandShorelineBandWidth: 0.28,
@@ -149,8 +168,10 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
   specularIntensity: 'si',
+  boatModel: 'bm',
   boatScale: 'bs',
   boatYOffset: 'by',
+  islandModel: 'im',
   islandScale: 'is',
   islandYOffset: 'iy',
   islandShorelineBandWidth: 'isb',
@@ -187,6 +208,10 @@ function getInitialValues(): ControlValues {
 
     if (key === 'waterType') {
       next[key] = parseWaterType(String(sourceVal));
+    } else if (key === 'boatModel') {
+      next[key] = sourceVal === 'zodiacBoat' ? 'zodiacBoat' : 'divingBoat';
+    } else if (key === 'islandModel') {
+      next[key] = sourceVal === 'lighthouseIsland' ? 'lighthouseIsland' : 'boathouseIsland';
     } else {
       const parsed = Number(sourceVal);
       if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
@@ -198,7 +223,7 @@ function getInitialValues(): ControlValues {
   return next;
 }
 
-export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange }: WaterControlsProps) {
+export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange, onBoatModelChange, onIslandModelChange }: WaterControlsProps) {
   const initialValues = useState<ControlValues>(() => getInitialValues())[0];
 
   // Wave parameters
@@ -238,8 +263,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [specularIntensity, setSpecularIntensity] = useState(initialValues.specularIntensity);
 
   // Objects
+  const [boatModel, setBoatModel] = useState(initialValues.boatModel);
   const [boatScale, setBoatScale] = useState(initialValues.boatScale);
   const [boatYOffset, setBoatYOffset] = useState(initialValues.boatYOffset);
+  const [islandModel, setIslandModel] = useState(initialValues.islandModel);
   const [islandScale, setIslandScale] = useState(initialValues.islandScale);
   const [islandYOffset, setIslandYOffset] = useState(initialValues.islandYOffset);
   const [islandShorelineBandWidth, setIslandShorelineBandWidth] = useState(initialValues.islandShorelineBandWidth);
@@ -307,8 +334,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
     onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
     onParameterChange('specularIntensity', initialValues.specularIntensity);
+    onBoatModelChange?.(initialValues.boatModel);
     onParameterChange('boatScale', initialValues.boatScale);
     onParameterChange('boatYOffset', initialValues.boatYOffset);
+    onIslandModelChange?.(initialValues.islandModel);
     onParameterChange('islandScale', initialValues.islandScale);
     onParameterChange('islandYOffset', initialValues.islandYOffset);
     onParameterChange('islandShorelineBandWidth', initialValues.islandShorelineBandWidth);
@@ -323,7 +352,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       initialValues.cameraHeight
     );
     onCameraChange(position.x, position.y, position.z);
-  }, [initialValues, onParameterChange, onCameraChange]);
+  }, [initialValues, onParameterChange, onCameraChange, onBoatModelChange, onIslandModelChange]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -361,8 +390,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       depthFadeDistance,
       depthFadeExponent,
       specularIntensity,
+      boatModel,
       boatScale,
       boatYOffset,
+      islandModel,
       islandScale,
       islandYOffset,
       islandShorelineBandWidth,
@@ -422,8 +453,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     depthFadeDistance,
     depthFadeExponent,
     specularIntensity,
+    boatModel,
     boatScale,
     boatYOffset,
+    islandModel,
     islandScale,
     islandYOffset,
     islandShorelineBandWidth,
@@ -619,6 +652,11 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('boatScale', val);
   }, [onParameterChange]);
 
+  const handleBoatModelChange = useCallback((modelId: BoatModelId) => {
+    setBoatModel(modelId);
+    onBoatModelChange?.(modelId);
+  }, [onBoatModelChange]);
+
   const handleBoatYOffsetChange = useCallback((value: number[]) => {
     const val = value[0];
     setBoatYOffset(val);
@@ -630,6 +668,11 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setIslandScale(val);
     onParameterChange('islandScale', val);
   }, [onParameterChange]);
+
+  const handleIslandModelChange = useCallback((modelId: IslandModelId) => {
+    setIslandModel(modelId);
+    onIslandModelChange?.(modelId);
+  }, [onIslandModelChange]);
 
   const handleIslandYOffsetChange = useCallback((value: number[]) => {
     const val = value[0];
@@ -706,8 +749,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setDepthFadeDistance(1.15);
     setDepthFadeExponent(1.65);
     setSpecularIntensity(1.0);
+    setBoatModel('divingBoat');
     setBoatScale(1);
     setBoatYOffset(0.4);
+    setIslandModel('boathouseIsland');
     setIslandScale(1);
     setIslandYOffset(0);
     setIslandShorelineBandWidth(0.28);
@@ -737,8 +782,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('depthFadeDistance', 1.15);
     onParameterChange('depthFadeExponent', 1.65);
     onParameterChange('specularIntensity', 1.0);
+    onBoatModelChange?.('divingBoat');
     onParameterChange('boatScale', 1);
     onParameterChange('boatYOffset', 0.4);
+    onIslandModelChange?.('boathouseIsland');
     onParameterChange('islandScale', 1);
     onParameterChange('islandYOffset', 0);
     onParameterChange('islandShorelineBandWidth', 0.28);
@@ -753,7 +800,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     
     const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, 0, 100, 50);
     onCameraChange(position.x, position.y, position.z);
-  }, [onParameterChange, onCameraChange, onShaderChange]);
+  }, [onParameterChange, onCameraChange, onShaderChange, onBoatModelChange, onIslandModelChange]);
 
   const handleShaderChange = useCallback((shaderName: string) => {
     const newWaterType = parseWaterType(shaderName);
@@ -1188,6 +1235,21 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
             {expandedSection === 'objects' && (
               <div className="space-y-3 pl-2">
                 <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Boat Model</label>
+                  <select
+                    value={boatModel}
+                    onChange={(e) => handleBoatModelChange(e.target.value as BoatModelId)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-white text-sm focus:outline-none focus:border-amber-400/50 transition-colors"
+                  >
+                    {BOAT_MODEL_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Boat Scale: <span className="text-amber-400 font-bold">{boatScale.toFixed(2)}</span>
                   </label>
@@ -1213,6 +1275,21 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     step={0.05}
                     className="w-full"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Island Model</label>
+                  <select
+                    value={islandModel}
+                    onChange={(e) => handleIslandModelChange(e.target.value as IslandModelId)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-white text-sm focus:outline-none focus:border-amber-400/50 transition-colors"
+                  >
+                    {ISLAND_MODEL_OPTIONS.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-2">

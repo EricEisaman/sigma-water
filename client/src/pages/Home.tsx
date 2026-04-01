@@ -108,6 +108,18 @@ export default function Home() {
     }
   };
 
+  const handleBoatModelChange = (modelId: 'divingBoat' | 'zodiacBoat') => {
+    if (oceanRef.current) {
+      void oceanRef.current.setBoatModel(modelId);
+    }
+  };
+
+  const handleIslandModelChange = (modelId: 'boathouseIsland' | 'lighthouseIsland') => {
+    if (oceanRef.current) {
+      void oceanRef.current.setIslandModel(modelId);
+    }
+  };
+
   return (
     <div className="w-full h-screen bg-gradient-to-b from-sky-200 via-sky-300 to-blue-400 overflow-hidden flex flex-col relative">
       {/* Canvas */}
@@ -179,6 +191,8 @@ export default function Home() {
           onCameraChange={handleCameraChange}
           onTopDownView={handleTopDownView}
           onShaderChange={handleShaderChange}
+          onBoatModelChange={handleBoatModelChange}
+          onIslandModelChange={handleIslandModelChange}
         />
       )}
 

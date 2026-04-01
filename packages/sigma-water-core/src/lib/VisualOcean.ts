@@ -30,6 +30,19 @@ import { filterParameterStateForShader, isParameterSupportedForShader } from './
 import { WaterMeshFactory } from './water/WaterMeshFactory';
 import { topDownCameraPosition } from './camera';
 
+type BoatModelId = 'divingBoat' | 'zodiacBoat';
+type IslandModelId = 'boathouseIsland' | 'lighthouseIsland';
+
+const BOAT_MODEL_FILES: Record<BoatModelId, string> = {
+  divingBoat: 'diving-boat.glb',
+  zodiacBoat: 'zodiac-boat.glb',
+};
+
+const ISLAND_MODEL_FILES: Record<IslandModelId, string> = {
+  boathouseIsland: 'island.glb',
+  lighthouseIsland: 'lighthouse-island.glb',
+};
+
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
   private engine: WebGPUEngine | null = null;
@@ -49,8 +62,12 @@ export class VisualOcean {
   private islandRoot: TransformNode | null = null;
   private boatMeshes: AbstractMesh[] = [];
   private islandMeshes: AbstractMesh[] = [];
+  private boatModelNodes: Array<AbstractMesh | TransformNode> = [];
+  private islandModelNodes: Array<AbstractMesh | TransformNode> = [];
   private boatCollisionSphere: Mesh | null = null;
   private islandCollisionSphere: Mesh | null = null;
+  private boatModelId: BoatModelId = 'divingBoat';
+  private islandModelId: IslandModelId = 'boathouseIsland';
   private boatCollisionCenter = new Vector3(-12, 0.4, -24);
   private islandCollisionCenter = new Vector3(22, 0, 10);
   private boatCollisionRadius = 2.2;
@@ -262,17 +279,71 @@ export class VisualOcean {
     this.boatRoot.position = new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
     this.islandRoot.position = new Vector3(22, this.parameterState.islandYOffset ?? 0, 10);
 
+    if (this.boatCollisionSphere) {
+      this.boatRoot.parent = this.boatCollisionSphere;
+      this.boatRoot.position = Vector3.Zero();
+    }
+
+    await this.loadBoatModel(this.boatModelId);
+    await this.loadIslandModel(this.islandModelId);
+
+    this.applyObjectScales();
+    this.updateCollisionSimulation();
+  }
+
+  private disposeModelNodes(nodes: Array<AbstractMesh | TransformNode>): void {
+    const uniqueNodes = Array.from(new Set(nodes));
+    for (const node of uniqueNodes.reverse()) {
+      node.dispose(false, true);
+    }
+  }
+
+  private getModelRoot(
+    result: Awaited<ReturnType<typeof SceneLoader.ImportMeshAsync>>,
+    fallbackRoot: TransformNode
+  ): AbstractMesh | TransformNode | null {
+    return result.transformNodes.find((n) => n.name === '__root__')
+      ?? result.meshes.find((n) => n.name === '__root__')
+      ?? result.transformNodes[0]
+      ?? result.meshes[0]
+      ?? fallbackRoot;
+  }
+
+  private getBoatAnchorCenter(): Vector3 {
+    const boatBounds = this.getBoundsData(this.boatMeshes);
+    if (boatBounds) {
+      return boatBounds.center.clone();
+    }
+    if (this.boatCollisionSphere) {
+      return this.boatCollisionSphere.position.clone();
+    }
+    return new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
+  }
+
+  private getIslandAnchorCenter(): Vector3 {
+    const islandBounds = this.getBoundsData(this.islandMeshes);
+    if (islandBounds) {
+      return islandBounds.center.clone();
+    }
+    return this.islandRoot?.getAbsolutePosition().clone() ?? new Vector3(22, this.parameterState.islandYOffset ?? 0, 10);
+  }
+
+  private async loadBoatModel(modelId: BoatModelId): Promise<void> {
+    if (!this.scene || !this.boatRoot) {
+      return;
+    }
+
+    const anchorCenter = this.getBoatAnchorCenter();
+    this.disposeModelNodes(this.boatModelNodes);
+    this.boatModelNodes = [];
+    this.boatMeshes = [];
+
     try {
-      const boatResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', 'diving-boat.glb', this.scene);
+      const boatResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', BOAT_MODEL_FILES[modelId], this.scene);
       this.boatMeshes = boatResult.meshes.filter((m) => m.name !== '__root__');
+      const boatSceneRoot = this.getModelRoot(boatResult, this.boatRoot);
 
-      const boatSceneRoot =
-        boatResult.transformNodes.find((n) => n.name === '__root__')
-        ?? boatResult.meshes.find((n) => n.name === '__root__')
-        ?? boatResult.transformNodes[0]
-        ?? boatResult.meshes[0];
-
-      if (boatSceneRoot) {
+      if (boatSceneRoot && boatSceneRoot !== this.boatRoot) {
         boatSceneRoot.parent = this.boatRoot;
       } else {
         this.boatMeshes.forEach((mesh) => {
@@ -282,35 +353,57 @@ export class VisualOcean {
         });
       }
 
-      this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, this.boatRoot.position.clone());
+      this.boatModelNodes = [
+        ...boatResult.transformNodes.filter((node) => node !== this.boatRoot),
+        ...boatResult.meshes.filter((mesh) => mesh !== this.boatRoot),
+      ];
 
-      if (this.boatCollisionSphere) {
-        const boatWorldPos = this.boatRoot.position.clone();
-        this.boatRoot.parent = this.boatCollisionSphere;
-        this.boatRoot.position = boatWorldPos.subtract(this.boatCollisionSphere.position);
-      }
-
-      console.log('✅ Boat GLB loaded');
+      this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, anchorCenter);
+      this.applyObjectScales();
+      this.boatModelId = modelId;
+      console.log(`✅ Boat GLB loaded (${BOAT_MODEL_FILES[modelId]})`);
     } catch (error) {
-      console.warn('⚠️ Boat GLB load failed, using proxy-only boat collision', error);
+      console.warn(`⚠️ Boat GLB load failed (${BOAT_MODEL_FILES[modelId]}), using proxy-only boat collision`, error);
     }
+  }
+
+  private async loadIslandModel(modelId: IslandModelId): Promise<void> {
+    if (!this.scene || !this.islandRoot) {
+      return;
+    }
+
+    const anchorCenter = this.getIslandAnchorCenter();
+    this.disposeModelNodes(this.islandModelNodes);
+    this.islandModelNodes = [];
+    this.islandMeshes = [];
 
     try {
-      const islandResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', 'island.glb', this.scene);
+      const islandResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', ISLAND_MODEL_FILES[modelId], this.scene);
       this.islandMeshes = islandResult.meshes.filter((m) => m.name !== '__root__');
-      this.islandMeshes.forEach((mesh) => {
-        if (!mesh.parent) {
-          mesh.parent = this.islandRoot;
-        }
-      });
-      this.alignRootToBoundsCenter(this.islandRoot, this.islandMeshes, this.islandRoot.position.clone());
-      console.log('✅ Island GLB loaded');
-    } catch (error) {
-      console.warn('⚠️ Island GLB load failed, using proxy-only island collision', error);
-    }
+      const islandSceneRoot = this.getModelRoot(islandResult, this.islandRoot);
 
-    this.applyObjectScales();
-    this.updateCollisionSimulation();
+      if (islandSceneRoot && islandSceneRoot !== this.islandRoot) {
+        islandSceneRoot.parent = this.islandRoot;
+      } else {
+        this.islandMeshes.forEach((mesh) => {
+          if (!mesh.parent) {
+            mesh.parent = this.islandRoot;
+          }
+        });
+      }
+
+      this.islandModelNodes = [
+        ...islandResult.transformNodes.filter((node) => node !== this.islandRoot),
+        ...islandResult.meshes.filter((mesh) => mesh !== this.islandRoot),
+      ];
+
+      this.alignRootToBoundsCenter(this.islandRoot, this.islandMeshes, anchorCenter);
+      this.applyObjectScales();
+      this.islandModelId = modelId;
+      console.log(`✅ Island GLB loaded (${ISLAND_MODEL_FILES[modelId]})`);
+    } catch (error) {
+      console.warn(`⚠️ Island GLB load failed (${ISLAND_MODEL_FILES[modelId]}), using proxy-only island collision`, error);
+    }
   }
 
   private getWaveHeightAt(x: number, z: number): number {
@@ -406,15 +499,19 @@ export class VisualOcean {
   }
 
   private applyObjectScales(): void {
+    const boatAnchor = this.getBoundsData(this.boatMeshes)?.center ?? this.getBoatAnchorCenter();
+    const islandAnchor = this.getBoundsData(this.islandMeshes)?.center ?? this.getIslandAnchorCenter();
     const boatScale = this.parameterState.boatScale ?? 1;
     const islandScale = this.parameterState.islandScale ?? 1;
 
     if (this.boatRoot) {
       this.boatRoot.scaling = new Vector3(boatScale, boatScale, boatScale);
+      this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, boatAnchor);
     }
 
     if (this.islandRoot) {
       this.islandRoot.scaling = new Vector3(islandScale, islandScale, islandScale);
+      this.alignRootToBoundsCenter(this.islandRoot, this.islandMeshes, islandAnchor);
     }
   }
 
@@ -476,7 +573,7 @@ export class VisualOcean {
     }
 
     const delta = targetCenter.subtract(bounds.center);
-    root.position.addInPlace(delta);
+    root.setAbsolutePosition(root.getAbsolutePosition().add(delta));
   }
 
   private computeIntersectionFactor(bounds: {
@@ -631,6 +728,12 @@ export class VisualOcean {
     const bobAmount = 0.18 + waveAmplitude * 0.08;
     const boatYOffset = this.parameterState.boatYOffset ?? 0.4;
     const islandYOffset = this.parameterState.islandYOffset ?? 0;
+
+    if (this.collisionMode === 0 && this.boatCollisionSphere) {
+      this.boatCollisionSphere.position.x = -12;
+      this.boatCollisionSphere.position.z = -24;
+      this.boatCollisionSphere.position.y = this.getWaveHeightAt(this.boatCollisionSphere.position.x, this.boatCollisionSphere.position.z) + boatYOffset;
+    }
 
     if (this.collisionMode === 1) {
       if (this.boatCollisionSphere) {
@@ -921,6 +1024,26 @@ export class VisualOcean {
     this.shaderRegistry?.setUniform(key, value);
   }
 
+  public async setBoatModel(modelId: string): Promise<void> {
+    if (modelId !== 'divingBoat' && modelId !== 'zodiacBoat') {
+      return;
+    }
+
+    await this.loadBoatModel(modelId);
+    this.updateCollisionSimulation();
+    this.applyCollisionUniforms();
+  }
+
+  public async setIslandModel(modelId: string): Promise<void> {
+    if (modelId !== 'boathouseIsland' && modelId !== 'lighthouseIsland') {
+      return;
+    }
+
+    await this.loadIslandModel(modelId);
+    this.updateCollisionSimulation();
+    this.applyCollisionUniforms();
+  }
+
   public updateCamera(x: number, y: number, z: number): void {
     if (!this.camera) return;
     this.camera.position = new Vector3(x, y, z);
@@ -999,6 +1122,8 @@ export class VisualOcean {
     }
     this.boatCollisionSphere?.dispose();
     this.islandCollisionSphere?.dispose();
+    this.disposeModelNodes(this.boatModelNodes);
+    this.disposeModelNodes(this.islandModelNodes);
     this.boatCollisionSphere = null;
     this.islandCollisionSphere = null;
     window.removeEventListener('keydown', this.handleKeyDown);

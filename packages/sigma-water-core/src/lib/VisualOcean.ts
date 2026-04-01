@@ -24,14 +24,19 @@ import {
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { parseWaterTypeId, type WaterTypeId } from '../water/WaterTypeRegistry';
+import { isBoatModelId, isIslandModelId, type BoatModelId, type IslandModelId } from '../models/objectModels';
 import { ShaderRegistry } from './shaders/ShaderRegistry';
 import { SHADER_DEFINITIONS } from './shaders/definitions';
 import { filterParameterStateForShader, isParameterSupportedForShader } from './water/ShaderParameterFilter';
 import { WaterMeshFactory } from './water/WaterMeshFactory';
 import { topDownCameraPosition } from './camera';
 
-type BoatModelId = 'divingBoat' | 'zodiacBoat';
-type IslandModelId = 'boathouseIsland' | 'lighthouseIsland';
+export interface VisualOceanConfig {
+  assetBaseUrl?: string;
+  environmentMapPath?: string;
+  modelsBasePath?: string;
+  enableGlobalListeners?: boolean;
+}
 
 const BOAT_MODEL_FILES: Record<BoatModelId, string> = {
   divingBoat: 'diving-boat.glb',
@@ -45,6 +50,7 @@ const ISLAND_MODEL_FILES: Record<IslandModelId, string> = {
 
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
+  private config: Required<VisualOceanConfig>;
   private engine: WebGPUEngine | null = null;
   private scene: Scene | null = null;
   private camera: FreeCamera | null = null;
@@ -84,6 +90,9 @@ export class VisualOcean {
   private isSpeedBoostActive = false;
   private isMoveUpActive = false;
   private isMoveDownActive = false;
+  private readonly handleResize = (): void => {
+    this.engine?.resize();
+  };
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (!this.camera) {
       return;
@@ -128,8 +137,15 @@ export class VisualOcean {
     }
   };
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, config: VisualOceanConfig = {}) {
     this.canvas = canvas;
+    const assetBaseUrl = config.assetBaseUrl ?? '/assets';
+    this.config = {
+      assetBaseUrl,
+      environmentMapPath: config.environmentMapPath ?? `${assetBaseUrl}/images/citrus_orchard_road_puresky_1k.exr`,
+      modelsBasePath: config.modelsBasePath ?? `${assetBaseUrl}/models/`,
+      enableGlobalListeners: config.enableGlobalListeners ?? true,
+    };
   }
 
   async initialize(): Promise<void> {
@@ -163,9 +179,9 @@ export class VisualOcean {
       }
     });
     
-    window.addEventListener('resize', () => {
-      this.engine?.resize();
-    });
+    if (this.config.enableGlobalListeners) {
+      window.addEventListener('resize', this.handleResize);
+    }
   }
 
   private async setupCamera(): Promise<void> {
@@ -182,8 +198,10 @@ export class VisualOcean {
     this.camera.keysLeft = [37, 65];
     this.camera.keysRight = [39, 68];
 
-    window.addEventListener('keydown', this.handleKeyDown);
-    window.addEventListener('keyup', this.handleKeyUp);
+    if (this.config.enableGlobalListeners) {
+      window.addEventListener('keydown', this.handleKeyDown);
+      window.addEventListener('keyup', this.handleKeyUp);
+    }
   }
 
   private async setupLighting(): Promise<void> {
@@ -202,8 +220,7 @@ export class VisualOcean {
     if (!this.scene) throw new Error('Scene not initialized');
     
     try {
-      const exrUrl = '/assets/images/citrus_orchard_road_puresky_1k.exr';
-      const envTexture = new EXRCubeTexture(exrUrl, this.scene, 512);
+      const envTexture = new EXRCubeTexture(this.config.environmentMapPath, this.scene, 512);
       this.scene.environmentTexture = envTexture;
       this.scene.environmentIntensity = 1.2;
       this.scene.createDefaultSkybox(envTexture, true, 5000, 0.3, false);
@@ -339,7 +356,7 @@ export class VisualOcean {
     this.boatMeshes = [];
 
     try {
-      const boatResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', BOAT_MODEL_FILES[modelId], this.scene);
+      const boatResult = await SceneLoader.ImportMeshAsync('', this.config.modelsBasePath, BOAT_MODEL_FILES[modelId], this.scene);
       this.boatMeshes = boatResult.meshes.filter((m) => m.name !== '__root__');
       const boatSceneRoot = this.getModelRoot(boatResult, this.boatRoot);
 
@@ -378,7 +395,7 @@ export class VisualOcean {
     this.islandMeshes = [];
 
     try {
-      const islandResult = await SceneLoader.ImportMeshAsync('', '/assets/models/', ISLAND_MODEL_FILES[modelId], this.scene);
+      const islandResult = await SceneLoader.ImportMeshAsync('', this.config.modelsBasePath, ISLAND_MODEL_FILES[modelId], this.scene);
       this.islandMeshes = islandResult.meshes.filter((m) => m.name !== '__root__');
       const islandSceneRoot = this.getModelRoot(islandResult, this.islandRoot);
 
@@ -1025,7 +1042,7 @@ export class VisualOcean {
   }
 
   public async setBoatModel(modelId: string): Promise<void> {
-    if (modelId !== 'divingBoat' && modelId !== 'zodiacBoat') {
+    if (!isBoatModelId(modelId)) {
       return;
     }
 
@@ -1035,7 +1052,7 @@ export class VisualOcean {
   }
 
   public async setIslandModel(modelId: string): Promise<void> {
-    if (modelId !== 'boathouseIsland' && modelId !== 'lighthouseIsland') {
+    if (!isIslandModelId(modelId)) {
       return;
     }
 
@@ -1126,6 +1143,7 @@ export class VisualOcean {
     this.disposeModelNodes(this.islandModelNodes);
     this.boatCollisionSphere = null;
     this.islandCollisionSphere = null;
+    window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
     this.scene?.dispose();

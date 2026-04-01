@@ -1,6 +1,12 @@
 # Sigma Water
 
-A high-performance, interactive water rendering demonstration built with **Babylon.js**, recreating the advanced features including realistic wave simulation, dynamic visual effects, and real-time parameter controls.
+> Status note (2026-04-01): this repository contains both the demo app and the publishable `@sigma-water/core` runtime package. The canonical library API documentation now lives in `packages/sigma-water-core/README.md`.
+
+A high-performance Sigma Water workspace containing a Babylon.js/WebGPU demo application and the reusable `@sigma-water/core` runtime library.
+
+## Library API
+
+For the npm-facing API, installation guidance, public exports, and runtime requirements, see `packages/sigma-water-core/README.md`.
 
 ## Features
 

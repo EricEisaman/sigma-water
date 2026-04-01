@@ -9,6 +9,7 @@
     "start": "NODE_ENV=production node dist/index.js",
     "preview": "vite preview --host",
     "check": "tsc --noEmit",
+    "check:library-boundary": "node scripts/check-library-boundary.mjs",
     "runtime:summary": "node scripts/summarize-runtime-health.mjs --file .manus-logs/browserConsole.log --minutes 10",
     "verify:runtime-log": "node scripts/verify-runtime-log.mjs --file .manus-logs/browserConsole.log --minutes 10 --max-staleness-minutes 20",
     "verify:ci": "pnpm test && pnpm check && node scripts/verify-runtime-log.mjs --file .manus-logs/browserConsole.log --minutes 10 --max-staleness-minutes 20 --allow-missing-file true && node scripts/verify-render-markers.mjs --file .manus-logs/browserConsole.log --minutes 10 --max-staleness-minutes 20 --allow-missing-file true",

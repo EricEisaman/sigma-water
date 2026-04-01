@@ -23,4 +23,14 @@ export {
 } from './water/WaterTypeRegistry';
 
 export { VisualOcean } from './lib/VisualOcean';
+export { type VisualOceanConfig } from './lib/VisualOcean';
 export { type IWaterMesh, type IWaterMeshConfig } from './lib/water/WaterMeshFactory';
+export {
+  BOAT_MODEL_OPTIONS,
+  ISLAND_MODEL_OPTIONS,
+  isBoatModelId,
+  isIslandModelId,
+  type BoatModelId,
+  type IslandModelId,
+  type ObjectModelOption,
+} from './models/objectModels';

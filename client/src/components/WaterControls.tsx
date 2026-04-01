@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button';
 import { RotateCcw, Settings2, Eye, Wind, Boxes } from 'lucide-react';
 import { orbitCameraPosition } from '@/lib/cameraOrbit';
 import { 
+  BOAT_MODEL_OPTIONS,
+  ISLAND_MODEL_OPTIONS,
+  type BoatModelId,
+  type IslandModelId,
   ShaderControlKey,
   WaterType, 
   WATER_TYPES, 
@@ -21,19 +25,6 @@ interface WaterControlsProps {
   onBoatModelChange?: (modelId: BoatModelId) => void;
   onIslandModelChange?: (modelId: IslandModelId) => void;
 }
-
-type BoatModelId = 'divingBoat' | 'zodiacBoat';
-type IslandModelId = 'boathouseIsland' | 'lighthouseIsland';
-
-const BOAT_MODEL_OPTIONS: Array<{ id: BoatModelId; label: string }> = [
-  { id: 'divingBoat', label: 'Diving Boat' },
-  { id: 'zodiacBoat', label: 'Zodiac Boat' },
-];
-
-const ISLAND_MODEL_OPTIONS: Array<{ id: IslandModelId; label: string }> = [
-  { id: 'boathouseIsland', label: 'Boathouse Island' },
-  { id: 'lighthouseIsland', label: 'Lighthouse Island' },
-];
 
 type ControlValues = {
   waveAmplitude: number;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { VisualOcean } from "@sigma-water/core";
 import { WaterControls } from "@/components/WaterControls";
-import { WaterType, serializeWaterType } from "@sigma-water/core";
+import { type BoatModelId, type IslandModelId, WaterType, serializeWaterType } from "@sigma-water/core";
 
 type SigmaWaterWindow = Window & {
   __sigmaWaterOcean?: VisualOcean;
@@ -35,7 +35,10 @@ export default function Home() {
         canvas.height = window.innerHeight;
 
         // Create and initialize ocean
-        const ocean = new VisualOcean(canvas);
+        const ocean = new VisualOcean(canvas, {
+          assetBaseUrl: '/assets',
+          enableGlobalListeners: true,
+        });
         await ocean.initialize();
 
         if (disposed) {
@@ -108,13 +111,13 @@ export default function Home() {
     }
   };
 
-  const handleBoatModelChange = (modelId: 'divingBoat' | 'zodiacBoat') => {
+  const handleBoatModelChange = (modelId: BoatModelId) => {
     if (oceanRef.current) {
       void oceanRef.current.setBoatModel(modelId);
     }
   };
 
-  const handleIslandModelChange = (modelId: 'boathouseIsland' | 'lighthouseIsland') => {
+  const handleIslandModelChange = (modelId: IslandModelId) => {
     if (oceanRef.current) {
       void oceanRef.current.setIslandModel(modelId);
     }

@@ -19,6 +19,7 @@ import {
   ISLAND_MODEL_OPTIONS,
   type BoatModelId,
   type IslandModelId,
+  normalizeBoatModelId,
   ShaderControlKey,
   WaterType, 
   WATER_TYPES, 
@@ -237,7 +238,10 @@ function parseControlValue(key: keyof ControlValues, sourceVal: unknown): Contro
   }
 
   if (key === 'boatModel') {
-    return sourceVal === 'zodiacBoat' ? 'zodiacBoat' : 'divingBoat';
+    if (typeof sourceVal === 'string') {
+      return normalizeBoatModelId(sourceVal) ?? 'divingBoat';
+    }
+    return 'divingBoat';
   }
 
   if (key === 'islandModel') {
@@ -558,9 +562,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   }, [onParameterChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange, onShaderChange, onCameraChange]);
 
   const handleKeepSavedSettings = useCallback(() => {
+    if (pendingStartupConflict) {
+      setControlStateFromValues(pendingStartupConflict.savedValues);
+      pushValuesToRuntime(pendingStartupConflict.savedValues);
+    }
     setPendingStartupConflict(null);
     setIsStartupResolved(true);
-  }, []);
+  }, [pendingStartupConflict, pushValuesToRuntime, setControlStateFromValues]);
 
   const handleUseLinkSettings = useCallback(() => {
     if (!pendingStartupConflict) {
@@ -579,7 +587,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   }, [initialValues, pushValuesToRuntime]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !isStartupResolved) return;
+    if (typeof window === 'undefined') return;
 
     const handleStorageSync = (event: StorageEvent) => {
       if (event.key !== STORAGE_KEY || !event.newValue) return;

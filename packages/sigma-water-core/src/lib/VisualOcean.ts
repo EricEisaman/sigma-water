@@ -24,7 +24,7 @@ import {
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { parseWaterTypeId, type WaterTypeId } from '../water/WaterTypeRegistry';
-import { isBoatModelId, isIslandModelId, type BoatModelId, type IslandModelId } from '../models/objectModels';
+import { normalizeBoatModelId, isIslandModelId, type BoatModelId, type IslandModelId } from '../models/objectModels';
 import { ShaderRegistry } from './shaders/ShaderRegistry';
 import { SHADER_DEFINITIONS } from './shaders/definitions';
 import { filterParameterStateForShader, isParameterSupportedForShader } from './water/ShaderParameterFilter';
@@ -354,35 +354,41 @@ export class VisualOcean {
     }
 
     const anchorCenter = this.getBoatAnchorCenter();
-    this.disposeModelNodes(this.boatModelNodes);
-    this.boatModelNodes = [];
-    this.boatMeshes = [];
+    const previousBoatModelNodes = this.boatModelNodes;
+    const previousBoatMeshes = this.boatMeshes;
 
     try {
       const boatResult = await SceneLoader.ImportMeshAsync('', this.config.modelsBasePath, BOAT_MODEL_FILES[modelId], this.scene);
-      this.boatMeshes = boatResult.meshes.filter((m) => m.name !== '__root__');
+      const nextBoatMeshes = boatResult.meshes.filter((m) => m.name !== '__root__');
       const boatSceneRoot = this.getModelRoot(boatResult, this.boatRoot);
 
       if (boatSceneRoot && boatSceneRoot !== this.boatRoot) {
         boatSceneRoot.parent = this.boatRoot;
       } else {
-        this.boatMeshes.forEach((mesh) => {
+        nextBoatMeshes.forEach((mesh) => {
           if (!mesh.parent) {
             mesh.parent = this.boatRoot;
           }
         });
       }
 
-      this.boatModelNodes = [
+      const nextBoatModelNodes = [
         ...boatResult.transformNodes.filter((node) => node !== this.boatRoot),
         ...boatResult.meshes.filter((mesh) => mesh !== this.boatRoot),
       ];
+
+      this.boatMeshes = nextBoatMeshes;
+      this.boatModelNodes = nextBoatModelNodes;
+
+      this.disposeModelNodes(previousBoatModelNodes);
 
       this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, anchorCenter);
       this.applyObjectScales();
       this.boatModelId = modelId;
       console.log(`✅ Boat GLB loaded (${BOAT_MODEL_FILES[modelId]})`);
     } catch (error) {
+      this.boatMeshes = previousBoatMeshes;
+      this.boatModelNodes = previousBoatModelNodes;
       console.warn(`⚠️ Boat GLB load failed (${BOAT_MODEL_FILES[modelId]}), using proxy-only boat collision`, error);
     }
   }
@@ -1045,11 +1051,12 @@ export class VisualOcean {
   }
 
   public async setBoatModel(modelId: string): Promise<void> {
-    if (!isBoatModelId(modelId)) {
+    const normalizedModelId = normalizeBoatModelId(modelId);
+    if (!normalizedModelId) {
       return;
     }
 
-    this.pendingBoatModel = modelId;
+    this.pendingBoatModel = normalizedModelId;
 
     if (this.boatModelLoading) {
       return;

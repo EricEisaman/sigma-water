@@ -53,7 +53,64 @@ async function run() {
 
     await closeControlsButton.waitFor({ state: 'visible', timeout: 10000 });
 
-    console.log('Playwright smoke test passed: conflict modal and controls collapse/reopen behavior verified.');
+    // Deterministic boat model switch check (zodiac <-> fishing/diving).
+    const objectsToggle = page.locator('button:has-text("Objects")');
+    await objectsToggle.waitFor({ state: 'visible', timeout: 10000 });
+    await objectsToggle.click();
+
+    await page.evaluate(() => {
+      const boatSelect = Array.from(document.querySelectorAll('select')).find((select) =>
+        Array.from(select.options).some((opt) => opt.value === 'zodiacBoat')
+      );
+      if (!boatSelect) {
+        throw new Error('Boat model select not found');
+      }
+      boatSelect.value = 'zodiacBoat';
+      boatSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const zodiacParam = await page.evaluate(() => new URLSearchParams(window.location.search).get('bm'));
+    assert(zodiacParam === 'zodiacBoat', `Expected URL bm=zodiacBoat after boat switch, got ${zodiacParam}`);
+
+    await page.evaluate(() => {
+      const boatSelect = Array.from(document.querySelectorAll('select')).find((select) =>
+        Array.from(select.options).some((opt) => opt.value === 'zodiacBoat')
+      );
+      if (!boatSelect) {
+        throw new Error('Boat model select not found');
+      }
+      boatSelect.value = 'divingBoat';
+      boatSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const fishingParam = await page.evaluate(() => new URLSearchParams(window.location.search).get('bm'));
+    assert(fishingParam === 'divingBoat', `Expected URL bm=divingBoat after switching back, got ${fishingParam}`);
+
+    // Water type persistence check: select non-default, reload, ensure it sticks.
+    const waterTypeToggle = page.locator('button:has-text("Water Type")');
+    await waterTypeToggle.waitFor({ state: 'visible', timeout: 10000 });
+    await waterTypeToggle.click();
+
+    await page.evaluate(() => {
+      const shaderSelect = Array.from(document.querySelectorAll('select')).find((select) =>
+        Array.from(select.options).some((opt) => opt.value === 'oceanWaves')
+      );
+      if (!shaderSelect) {
+        throw new Error('Water type select not found');
+      }
+      shaderSelect.value = 'oceanWaves';
+      shaderSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const waterTypeParamBeforeReload = await page.evaluate(() => new URLSearchParams(window.location.search).get('wt'));
+    assert(waterTypeParamBeforeReload === 'oceanWaves', `Expected URL wt=oceanWaves before reload, got ${waterTypeParamBeforeReload}`);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    const waterTypeParamAfterReload = await page.evaluate(() => new URLSearchParams(window.location.search).get('wt'));
+    assert(waterTypeParamAfterReload === 'oceanWaves', `Expected URL wt=oceanWaves after reload, got ${waterTypeParamAfterReload}`);
+
+    console.log('Playwright smoke test passed: conflict modal, controls collapse/reopen, boat model switching, and water type persistence verified.');
   } finally {
     await context.close();
     await browser.close();

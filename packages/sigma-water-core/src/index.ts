@@ -28,6 +28,7 @@ export { type IWaterMesh, type IWaterMeshConfig } from './lib/water/WaterMeshFac
 export {
   BOAT_MODEL_OPTIONS,
   ISLAND_MODEL_OPTIONS,
+  normalizeBoatModelId,
   isBoatModelId,
   isIslandModelId,
   type BoatModelId,

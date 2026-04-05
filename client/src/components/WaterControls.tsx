@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RotateCcw, Settings2, Eye, Wind, Boxes, Menu, X } from 'lucide-react';
+import { RotateCcw, Settings2, Eye, Wind, Boxes, Menu, X, Share2 } from 'lucide-react';
 import { orbitCameraPosition } from '@/lib/cameraOrbit';
 import { 
   BOAT_MODEL_OPTIONS,
@@ -284,6 +285,18 @@ function hasRecognizedUrlParams(params: URLSearchParams): boolean {
   });
 }
 
+function buildSearchParamsFromValues(values: ControlValues): URLSearchParams {
+  const params = new URLSearchParams();
+  CONTROL_KEYS.forEach((key) => {
+    if (key === 'waterType') {
+      params.set(PARAM_KEYS[key], serializeWaterType(values[key]));
+      return;
+    }
+    params.set(PARAM_KEYS[key], String(values[key]));
+  });
+  return params;
+}
+
 function areControlValuesEqual(a: ControlValues, b: ControlValues): boolean {
   return CONTROL_KEYS.every((key) => {
     if (key === 'waterType') {
@@ -320,8 +333,15 @@ function getStartupSettingsResolution(): StartupSettingsResolution {
   const linkValues = buildControlValues(stored, params, true);
 
   if (!hasStoredValues) {
+    if (urlHasSettings && !areControlValuesEqual(DEFAULT_VALUES, linkValues)) {
+      return {
+        initialValues: DEFAULT_VALUES,
+        conflict: { savedValues: DEFAULT_VALUES, linkValues },
+      };
+    }
+
     return {
-      initialValues: linkValues,
+      initialValues: DEFAULT_VALUES,
       conflict: null,
     };
   }
@@ -580,6 +600,151 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setIsStartupResolved(true);
   }, [pendingStartupConflict, setControlStateFromValues, pushValuesToRuntime]);
 
+  const buildCurrentControlValues = useCallback((): ControlValues => ({
+    waveAmplitude,
+    waveFrequency,
+    windDirection,
+    windSpeed,
+    crestFoamEnabled,
+    crestFoamThreshold,
+    foamIntensity,
+    foamWidth,
+    foamNoiseFactor,
+    foamCellScale,
+    foamShredSlope,
+    foamFizzWeight,
+    intersectionFoamEnabled,
+    intersectionFoamIntensity,
+    intersectionFoamWidth,
+    intersectionFoamFalloff,
+    intersectionFoamNoise,
+    intersectionFoamVerticalRange,
+    underwaterEnabled,
+    underwaterTransitionDepth,
+    underwaterFogDensity,
+    underwaterHorizonMix,
+    underwaterColorR,
+    underwaterColorG,
+    underwaterColorB,
+    toonShadowColorR,
+    toonShadowColorG,
+    toonShadowColorB,
+    toonMidColorR,
+    toonMidColorG,
+    toonMidColorB,
+    toonLightColorR,
+    toonLightColorG,
+    toonLightColorB,
+    causticIntensity,
+    skyReflectionMix,
+    normalDetailStrength,
+    normalDistanceFalloff,
+    depthFadeDistance,
+    depthFadeExponent,
+    specularIntensity,
+    boatModel,
+    boatScale,
+    boatYOffset,
+    islandModel,
+    islandScale,
+    islandYOffset,
+    islandShorelineBandWidth,
+    islandShorelineFoamGain,
+    collisionMode,
+    showProxySpheres,
+    cameraDistance,
+    cameraHeight,
+    cameraAngle,
+    waterType,
+  }), [
+    waveAmplitude,
+    waveFrequency,
+    windDirection,
+    windSpeed,
+    crestFoamEnabled,
+    crestFoamThreshold,
+    foamIntensity,
+    foamWidth,
+    foamNoiseFactor,
+    foamCellScale,
+    foamShredSlope,
+    foamFizzWeight,
+    intersectionFoamEnabled,
+    intersectionFoamIntensity,
+    intersectionFoamWidth,
+    intersectionFoamFalloff,
+    intersectionFoamNoise,
+    intersectionFoamVerticalRange,
+    underwaterEnabled,
+    underwaterTransitionDepth,
+    underwaterFogDensity,
+    underwaterHorizonMix,
+    underwaterColorR,
+    underwaterColorG,
+    underwaterColorB,
+    toonShadowColorR,
+    toonShadowColorG,
+    toonShadowColorB,
+    toonMidColorR,
+    toonMidColorG,
+    toonMidColorB,
+    toonLightColorR,
+    toonLightColorG,
+    toonLightColorB,
+    causticIntensity,
+    skyReflectionMix,
+    normalDetailStrength,
+    normalDistanceFalloff,
+    depthFadeDistance,
+    depthFadeExponent,
+    specularIntensity,
+    boatModel,
+    boatScale,
+    boatYOffset,
+    islandModel,
+    islandScale,
+    islandYOffset,
+    islandShorelineBandWidth,
+    islandShorelineFoamGain,
+    collisionMode,
+    showProxySpheres,
+    cameraDistance,
+    cameraHeight,
+    cameraAngle,
+    waterType,
+  ]);
+
+  const handleShare = useCallback(async () => {
+    if (typeof window === 'undefined') return;
+
+    let valuesForShare: ControlValues | null = null;
+
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const stored = JSON.parse(raw) as Partial<ControlValues>;
+        valuesForShare = buildControlValues(stored, new URLSearchParams(), false);
+      }
+    } catch {
+      valuesForShare = null;
+    }
+
+    if (!valuesForShare) {
+      valuesForShare = buildCurrentControlValues();
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(valuesForShare));
+    }
+
+    const params = buildSearchParamsFromValues(valuesForShare);
+    const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}${window.location.hash}`;
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success('Share URL copied to clipboard');
+    } catch {
+      toast.error('Unable to copy share URL');
+    }
+  }, [buildCurrentControlValues]);
+
   useEffect(() => {
     // Sync runtime to startup source. If URL conflicts with saved settings,
     // we keep saved values until the user chooses in the conflict modal.
@@ -609,63 +774,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   useEffect(() => {
     if (typeof window === 'undefined' || !isStartupResolved) return;
 
-    const values: ControlValues = {
-      waveAmplitude,
-      waveFrequency,
-      windDirection,
-      windSpeed,
-      crestFoamEnabled,
-      crestFoamThreshold,
-      foamIntensity,
-      foamWidth,
-      foamNoiseFactor,
-      foamCellScale,
-      foamShredSlope,
-      foamFizzWeight,
-      intersectionFoamEnabled,
-      intersectionFoamIntensity,
-      intersectionFoamWidth,
-      intersectionFoamFalloff,
-      intersectionFoamNoise,
-      intersectionFoamVerticalRange,
-      underwaterEnabled,
-      underwaterTransitionDepth,
-      underwaterFogDensity,
-      underwaterHorizonMix,
-      underwaterColorR,
-      underwaterColorG,
-      underwaterColorB,
-      toonShadowColorR,
-      toonShadowColorG,
-      toonShadowColorB,
-      toonMidColorR,
-      toonMidColorG,
-      toonMidColorB,
-      toonLightColorR,
-      toonLightColorG,
-      toonLightColorB,
-      causticIntensity,
-      skyReflectionMix,
-      normalDetailStrength,
-      normalDistanceFalloff,
-      depthFadeDistance,
-      depthFadeExponent,
-      specularIntensity,
-      boatModel,
-      boatScale,
-      boatYOffset,
-      islandModel,
-      islandScale,
-      islandYOffset,
-      islandShorelineBandWidth,
-      islandShorelineFoamGain,
-      collisionMode,
-      showProxySpheres,
-      cameraDistance,
-      cameraHeight,
-      cameraAngle,
-      waterType,
-    };
+    const values = buildCurrentControlValues();
 
     const skipLocalStorageWrite = skipNextLocalStorageWriteRef.current;
     if (skipLocalStorageWrite) {
@@ -673,19 +782,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     } else {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
     }
-
-    const params = new URLSearchParams(window.location.search);
-    (Object.keys(values) as Array<keyof ControlValues>).forEach((key) => {
-      if (key === 'waterType') {
-        params.set(PARAM_KEYS[key], serializeWaterType(values[key]));
-      } else {
-        params.set(PARAM_KEYS[key], String(values[key]));
-      }
-    });
-
-    const query = params.toString();
-    const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
-    window.history.replaceState(null, '', nextUrl);
   }, [
     waveAmplitude,
     waveFrequency,
@@ -743,6 +839,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraAngle,
     waterType,
     isStartupResolved,
+    buildCurrentControlValues,
   ]);
 
   const handleWindDirectionChange = useCallback((value: number[]) => {
@@ -1105,17 +1202,14 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     <AlertDialog open={pendingStartupConflict !== null}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Link Settings Detected</AlertDialogTitle>
+          <AlertDialogTitle>URL Parameters Detected</AlertDialogTitle>
           <AlertDialogDescription>
-            This link has control settings that differ from your saved settings. Would you like to replace your saved settings with the link values?
+            Do you want the current URL parameters to overwrite your previous session data?
           </AlertDialogDescription>
-          <p className="text-xs text-slate-500">
-            Current choice: Keep My Saved Settings (default)
-          </p>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={handleKeepSavedSettings}>Keep My Saved Settings</AlertDialogCancel>
-          <AlertDialogAction onClick={handleUseLinkSettings}>Use Link Settings</AlertDialogAction>
+          <AlertDialogCancel onClick={handleKeepSavedSettings}>NO</AlertDialogCancel>
+          <AlertDialogAction onClick={handleUseLinkSettings}>YES</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -1142,6 +1236,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
               <CardDescription className="text-xs text-slate-400 mt-1">SIGGRAPH-Grade Rendering</CardDescription>
             </div>
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleShare}
+                title="Share current controls"
+                className="h-8 w-8 p-0 hover:bg-slate-700/50"
+              >
+                <Share2 className="h-4 w-4 text-slate-300" />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

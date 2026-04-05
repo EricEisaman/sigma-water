@@ -57,7 +57,7 @@ const ADAPTIVE_TIER_CONFIGS: Record<AdaptiveTier, IWaterMesh> = {
     meshType: 'groundAdaptive',
     width: 3600,
     height: 3600,
-    subdivisions: 160,
+    subdivisions: 224,
   },
 };
 

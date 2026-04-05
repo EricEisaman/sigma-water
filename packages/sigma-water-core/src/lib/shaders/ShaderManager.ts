@@ -78,7 +78,9 @@ export class ShaderManager {
       }
 
       if (this.activeContextId === contextId) {
-        console.log(`ℹ️ Already using shader: ${contextId}`);
+        this.targetMesh = mesh;
+        targetContext.activate(mesh);
+        console.log(`ℹ️ Rebound active shader: ${contextId}`);
         return;
       }
 

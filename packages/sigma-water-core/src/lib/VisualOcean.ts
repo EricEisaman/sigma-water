@@ -200,6 +200,8 @@ export class VisualOcean {
     
     this.camera = new FreeCamera('camera', new Vector3(0, 50, -100), this.scene);
     this.camera.setTarget(Vector3.Zero());
+    this.camera.minZ = 0.1;
+    this.camera.maxZ = 20000;
     this.scene.activeCamera = this.camera;
     this.camera.attachControl(this.canvas, true);
     this.camera.speed = this.baseCameraSpeed;
@@ -1175,17 +1177,25 @@ export class VisualOcean {
         );
 
         if (shouldRetier && this.scene) {
-          this.shaderRegistry.disposeActiveMaterial();
-          this.oceanMesh = WaterMeshFactory.replaceWaterMesh(
-            this.oceanMesh,
-            this.currentShaderName,
-            this.scene,
-            { x: p.x, y: p.y, z: p.z }
-          );
-          this.shaderRegistry.switchTo(this.currentShaderName, this.oceanMesh);
-          this.shaderRegistry.setUniforms(filterParameterStateForShader(this.parameterState, this.currentShaderName));
-          this.shaderRegistry.setUniform('time', this.elapsedTime);
-          this.applyCollisionUniforms();
+          try {
+            this.oceanMesh = WaterMeshFactory.replaceWaterMesh(
+              this.oceanMesh,
+              this.currentShaderName,
+              this.scene,
+              { x: p.x, y: p.y, z: p.z }
+            );
+            this.shaderRegistry.switchTo(this.currentShaderName, this.oceanMesh);
+            this.shaderRegistry.setUniforms(filterParameterStateForShader(this.parameterState, this.currentShaderName));
+            this.shaderRegistry.setUniform('time', this.elapsedTime);
+            this.applyCollisionUniforms();
+
+            if (!this.oceanMesh.material) {
+              throw new Error('Adaptive retier completed without assigning a material');
+            }
+          } catch (error) {
+            console.error('❌ Adaptive retier failed, attempting recovery', error);
+            this.verifyRenderStateAndRecover();
+          }
         }
       }
     }

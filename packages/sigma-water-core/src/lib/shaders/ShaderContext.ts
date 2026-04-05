@@ -160,7 +160,11 @@ export class ShaderContext {
    * Activate this shader context on a mesh
    */
   public activate(mesh: Mesh): void {
-    if (this.state.isActive) {
+    const materialAlreadyBound = this.state.material !== null
+      && this.state.mesh === mesh
+      && mesh.material === this.state.material;
+
+    if (this.state.isActive && materialAlreadyBound) {
       console.log(`ℹ️ Shader context already active: ${this.config.id}`);
       return;
     }
@@ -172,7 +176,8 @@ export class ShaderContext {
         this.state.material = this.createMaterial();
       }
 
-      // Apply material to mesh
+      // Apply material to mesh. This path also rebinds when the context stays active
+      // but the mesh instance changed (adaptive retier).
       this.state.mesh = mesh;
       mesh.material = this.state.material;
       this.state.isActive = true;

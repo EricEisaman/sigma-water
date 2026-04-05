@@ -134,7 +134,7 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
     profileFresnelBase: 0.02,
     profileFresnelStrength: 0.74,
     profileFresnelPower: 5.0,
-    profileDepthViewScale: 165,
+    profileDepthViewScale: 230,
     profileToneGamma: 0.94,
     profileSpecularClamp: 0.22,
   },

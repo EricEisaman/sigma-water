@@ -100,7 +100,9 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
   let depthDistance = max(uniforms.depthFadeDistance, 0.2);
   let depthExp = max(uniforms.depthFadeExponent, 0.25);
-  let viewDepth = clamp(cameraDist / (depthDistance * 170.0), 0.0, 1.0);
+  let baseDepthSpan = depthDistance * 170.0;
+  let adaptiveDepthSpan = max(baseDepthSpan, cameraDist * 0.72 + 180.0);
+  let viewDepth = clamp(cameraDist / adaptiveDepthSpan, 0.0, 0.93);
   let troughDepth = clamp((1.0 - heightBand) * 0.72 + slope * 0.42, 0.0, 1.0);
   let crestLift = clamp(heightBand * (1.0 - slope) * 1.22, 0.0, 1.0);
   let pseudoDepth = clamp(troughDepth + viewDepth * 0.52 - crestLift * 0.36, 0.0, 1.0);

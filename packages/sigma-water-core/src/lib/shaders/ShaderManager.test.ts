@@ -137,4 +137,18 @@ describe('ShaderManager', () => {
     expect(ids.includes(manager.getActiveContextId() || '')).toBe(true);
     expect(manager.getActiveContext()).not.toBeNull();
   });
+
+  test('switching to same shader rebinds active context', () => {
+    const manager = new ShaderManager();
+    const a = new MockShaderContext('a');
+
+    manager.registerContext(a as any);
+
+    manager.switchTo('a', { id: 'mesh-a' } as any);
+    manager.switchTo('a', { id: 'mesh-b' } as any);
+
+    expect(manager.getActiveContextId()).toBe('a');
+    expect(a.activated).toBe(2);
+    expect(a.deactivated).toBe(0);
+  });
 });

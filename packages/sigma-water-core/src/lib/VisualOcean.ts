@@ -96,6 +96,15 @@ export class VisualOcean {
   private readonly handleResize = (): void => {
     this.engine?.resize();
   };
+  private applySpeedBoostState(active: boolean): void {
+    this.isSpeedBoostActive = active;
+    if (!this.camera) {
+      return;
+    }
+    this.camera.speed = active
+      ? this.baseCameraSpeed * this.speedBoostMultiplier
+      : this.baseCameraSpeed;
+  }
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (!this.camera) {
       return;
@@ -105,8 +114,7 @@ export class VisualOcean {
       if (this.isSpeedBoostActive) {
         return;
       }
-      this.isSpeedBoostActive = true;
-      this.camera.speed = this.baseCameraSpeed * this.speedBoostMultiplier;
+      this.applySpeedBoostState(true);
       return;
     }
 
@@ -125,8 +133,10 @@ export class VisualOcean {
     }
 
     if (event.key === 'Shift') {
-      this.isSpeedBoostActive = false;
-      this.camera.speed = this.baseCameraSpeed;
+      if (!this.isSpeedBoostActive) {
+        return;
+      }
+      this.applySpeedBoostState(false);
       return;
     }
 
@@ -1107,6 +1117,13 @@ export class VisualOcean {
     this.camera.setTarget(Vector3.Zero());
   }
 
+  public setSpeedBoostActive(active: boolean): void {
+    if (this.isSpeedBoostActive === active) {
+      return;
+    }
+    this.applySpeedBoostState(active);
+  }
+
   public setTopDownView(height: number): void {
     if (!this.camera) return;
     const p = topDownCameraPosition(height);
@@ -1177,6 +1194,7 @@ export class VisualOcean {
   }
 
   public dispose(): void {
+    this.applySpeedBoostState(false);
     this.boatCollisionSphere?.dispose();
     this.islandCollisionSphere?.dispose();
     this.disposeModelNodes(this.boatModelNodes);

@@ -47,11 +47,31 @@ export default function Home() {
         const handleResize = () => {
           ocean.resize();
         };
+        const handleHostKeyDown = (event: KeyboardEvent) => {
+          if (event.key === 'Shift') {
+            ocean.setSpeedBoostActive(true);
+          }
+        };
+        const handleHostKeyUp = (event: KeyboardEvent) => {
+          if (event.key === 'Shift') {
+            ocean.setSpeedBoostActive(false);
+          }
+        };
+        const handleWindowBlur = () => {
+          ocean.setSpeedBoostActive(false);
+        };
 
         handleResize();
         window.addEventListener("resize", handleResize);
+        window.addEventListener("keydown", handleHostKeyDown);
+        window.addEventListener("keyup", handleHostKeyUp);
+        window.addEventListener("blur", handleWindowBlur);
         return () => {
           window.removeEventListener("resize", handleResize);
+          window.removeEventListener("keydown", handleHostKeyDown);
+          window.removeEventListener("keyup", handleHostKeyUp);
+          window.removeEventListener("blur", handleWindowBlur);
+          ocean.setSpeedBoostActive(false);
         };
       } catch (err) {
         if (disposed) return;

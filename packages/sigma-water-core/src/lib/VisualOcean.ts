@@ -29,7 +29,7 @@ import { ShaderRegistry } from './shaders/ShaderRegistry';
 import { SHADER_DEFINITIONS } from './shaders/definitions';
 import { filterParameterStateForShader, isParameterSupportedForShader } from './water/ShaderParameterFilter';
 import { WaterMeshFactory } from './water/WaterMeshFactory';
-import { topDownCameraPosition } from './camera';
+import { boostedCameraSpeed, topDownCameraPosition } from './camera';
 
 export interface VisualOceanConfig {
   assetBaseUrl?: string;
@@ -101,9 +101,7 @@ export class VisualOcean {
     if (!this.camera) {
       return;
     }
-    this.camera.speed = active
-      ? this.baseCameraSpeed * this.speedBoostMultiplier
-      : this.baseCameraSpeed;
+    this.camera.speed = boostedCameraSpeed(this.baseCameraSpeed, active, this.speedBoostMultiplier);
   }
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (!this.camera) {
@@ -210,6 +208,9 @@ export class VisualOcean {
     this.camera.keysDown = [40, 83];
     this.camera.keysLeft = [37, 65];
     this.camera.keysRight = [39, 68];
+
+    // Keep camera speed coherent if boost state changed before camera setup completed.
+    this.applySpeedBoostState(this.isSpeedBoostActive);
 
     if (this.config.enableGlobalListeners) {
       window.addEventListener('keydown', this.handleKeyDown);

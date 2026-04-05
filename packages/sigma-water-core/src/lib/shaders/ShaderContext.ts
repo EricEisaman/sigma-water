@@ -8,7 +8,7 @@
  * - Lifecycle management (setup, update, cleanup)
  */
 
-import { Scene, Mesh, ShaderMaterial, Material, ShaderLanguage } from '@babylonjs/core';
+import { BaseTexture, Scene, Mesh, ShaderMaterial, Material, ShaderLanguage } from '@babylonjs/core';
 
 export interface ShaderContextConfig {
   /** Unique shader identifier */
@@ -222,6 +222,8 @@ export class ShaderContext {
       // Apply to material based on type
       if (typeof value === 'number') {
         this.state.material.setFloat(name, value);
+      } else if (value instanceof BaseTexture) {
+        this.state.material.setTexture(name, value);
       } else if (value instanceof Array) {
         if (value.length === 2) {
           this.state.material.setVector2(name, { x: value[0], y: value[1] });

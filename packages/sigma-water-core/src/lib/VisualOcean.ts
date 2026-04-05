@@ -21,6 +21,9 @@ import {
   Color4,
   EXRCubeTexture,
   DepthRenderer,
+  Constants,
+  RawTexture,
+  Texture,
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { parseWaterTypeId, type WaterTypeId } from '../water/WaterTypeRegistry';
@@ -30,6 +33,7 @@ import { SHADER_DEFINITIONS } from './shaders/definitions';
 import { filterParameterStateForShader, isParameterSupportedForShader } from './water/ShaderParameterFilter';
 import { WaterMeshFactory } from './water/WaterMeshFactory';
 import { boostedCameraSpeed, topDownCameraPosition } from './camera';
+import { buildIntersectionFoamField } from './water/IntersectionFoamField';
 
 export interface VisualOceanConfig {
   assetBaseUrl?: string;
@@ -83,10 +87,20 @@ export class VisualOcean {
   private islandCollisionRadius = 4.0;
   private boatIntersectionFactor = 0;
   private islandIntersectionFactor = 0;
+  private boatIntersectionFoamTexture: RawTexture | null = null;
+  private islandIntersectionFoamTexture: RawTexture | null = null;
+  private boatIntersectionFoamFieldBounds: [number, number, number, number] = [-16, -28, 8, 8];
+  private islandIntersectionFoamFieldBounds: [number, number, number, number] = [16, 4, 12, 12];
+  private boatIntersectionFoamFieldMaxDistance = 6;
+  private islandIntersectionFoamFieldMaxDistance = 8;
+  private boatIntersectionFoamFieldValid = 0;
+  private islandIntersectionFoamFieldValid = 0;
+  private boatIntersectionFoamFieldCacheKey: string | null = null;
+  private islandIntersectionFoamFieldCacheKey: string | null = null;
   private underwaterFactor = 0;
   private boatVerticalVelocity = 0;
   private islandAlignmentOffset = new Vector3(0, 0, 0);
-  private showProxySpheres = true;
+  private showProxySpheres = false;
   private collisionMode = 0;
   private readonly baseCameraSpeed = 0.5;
   private readonly speedBoostMultiplier = 4;
@@ -262,6 +276,8 @@ export class VisualOcean {
     this.shaderRegistry.registerBatch(SHADER_DEFINITIONS);
     console.log('✅ ShaderRegistry initialized with all shader definitions');
 
+    this.ensureIntersectionFoamFieldTextures();
+
     this.setupCollisionDebugProxies();
 
     // Apply initial shader
@@ -271,6 +287,125 @@ export class VisualOcean {
     this.scene.onAfterRenderObservable.addOnce(() => {
       this.verifyRenderStateAndRecover();
     });
+  }
+
+  private createFallbackIntersectionFoamTexture(name: string): RawTexture | null {
+    if (!this.scene) {
+      return null;
+    }
+
+    const data = new Uint8Array([255, 255, 255, 255]);
+    const texture = new RawTexture(
+      data,
+      1,
+      1,
+      Constants.TEXTUREFORMAT_RGBA,
+      this.scene,
+      false,
+      false,
+      Texture.BILINEAR_SAMPLINGMODE,
+      Constants.TEXTURETYPE_UNSIGNED_BYTE
+    );
+    texture.name = name;
+    texture.wrapU = Texture.CLAMP_ADDRESSMODE;
+    texture.wrapV = Texture.CLAMP_ADDRESSMODE;
+    return texture;
+  }
+
+  private ensureIntersectionFoamFieldTextures(): void {
+    if (!this.boatIntersectionFoamTexture) {
+      this.boatIntersectionFoamTexture = this.createFallbackIntersectionFoamTexture('boatIntersectionFoamFieldFallback');
+    }
+    if (!this.islandIntersectionFoamTexture) {
+      this.islandIntersectionFoamTexture = this.createFallbackIntersectionFoamTexture('islandIntersectionFoamFieldFallback');
+    }
+  }
+
+  private rebuildBoatIntersectionFoamField(): void {
+    if (!this.scene) {
+      return;
+    }
+
+    const boatScale = this.parameterState.boatScale ?? 1;
+    const boatBounds = this.getBoundsData(this.boatMeshes);
+    const nextKey = boatBounds
+      ? `${this.boatModelId}|${boatScale.toFixed(4)}|${boatBounds.extentX.toFixed(3)}|${boatBounds.extentY.toFixed(3)}|${boatBounds.extentZ.toFixed(3)}`
+      : `${this.boatModelId}|${boatScale.toFixed(4)}|empty`;
+    if (this.boatIntersectionFoamFieldCacheKey === nextKey) {
+      return;
+    }
+
+    const field = buildIntersectionFoamField({
+      scene: this.scene,
+      meshes: this.boatMeshes,
+      resolution: 256,
+      textureName: 'boatIntersectionFoamField',
+    });
+
+    if (!field) {
+      this.boatIntersectionFoamFieldCacheKey = nextKey;
+      this.boatIntersectionFoamFieldValid = 0;
+      console.warn('⚠️ Boat intersection foam field build failed; mesh-based intersection foam disabled for boat', {
+        modelId: this.boatModelId,
+        meshCount: this.boatMeshes.length,
+        cacheKey: nextKey,
+      });
+      this.ensureIntersectionFoamFieldTextures();
+      return;
+    }
+
+    this.boatIntersectionFoamTexture?.dispose();
+    this.boatIntersectionFoamTexture = field.texture;
+    this.boatIntersectionFoamFieldBounds = field.bounds;
+    this.boatIntersectionFoamFieldMaxDistance = field.maxDistance;
+    this.boatIntersectionFoamFieldValid = 1;
+    this.boatIntersectionFoamFieldCacheKey = nextKey;
+  }
+
+  private rebuildIslandIntersectionFoamField(): void {
+    if (!this.scene) {
+      return;
+    }
+
+    const islandScale = this.parameterState.islandScale ?? 1;
+    const islandBounds = this.getBoundsData(this.islandMeshes);
+    const nextKey = islandBounds
+      ? `${this.islandModelId}|${islandScale.toFixed(4)}|${islandBounds.extentX.toFixed(3)}|${islandBounds.extentY.toFixed(3)}|${islandBounds.extentZ.toFixed(3)}`
+      : `${this.islandModelId}|${islandScale.toFixed(4)}|empty`;
+    if (this.islandIntersectionFoamFieldCacheKey === nextKey) {
+      return;
+    }
+
+    const field = buildIntersectionFoamField({
+      scene: this.scene,
+      meshes: this.islandMeshes,
+      resolution: 384,
+      textureName: 'islandIntersectionFoamField',
+    });
+
+    if (!field) {
+      this.islandIntersectionFoamFieldCacheKey = nextKey;
+      this.islandIntersectionFoamFieldValid = 0;
+      console.warn('⚠️ Island intersection foam field build failed; mesh-based intersection foam disabled for island', {
+        modelId: this.islandModelId,
+        meshCount: this.islandMeshes.length,
+        cacheKey: nextKey,
+      });
+      this.ensureIntersectionFoamFieldTextures();
+      return;
+    }
+
+    this.islandIntersectionFoamTexture?.dispose();
+    this.islandIntersectionFoamTexture = field.texture;
+    this.islandIntersectionFoamFieldBounds = field.bounds;
+    this.islandIntersectionFoamFieldMaxDistance = field.maxDistance;
+    this.islandIntersectionFoamFieldValid = 1;
+    this.islandIntersectionFoamFieldCacheKey = nextKey;
+  }
+
+  private rebuildIntersectionFoamFields(): void {
+    this.rebuildBoatIntersectionFoamField();
+    this.rebuildIslandIntersectionFoamField();
   }
 
   private setupCollisionDebugProxies(): void {
@@ -321,6 +456,7 @@ export class VisualOcean {
     await this.loadIslandModel(this.islandModelId);
 
     this.applyObjectScales();
+    this.rebuildIntersectionFoamFields();
     this.updateCollisionSimulation();
   }
 
@@ -397,6 +533,7 @@ export class VisualOcean {
 
       this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, anchorCenter);
       this.applyObjectScales();
+      this.rebuildBoatIntersectionFoamField();
       this.boatModelId = modelId;
       console.log(`✅ Boat GLB loaded (${BOAT_MODEL_FILES[modelId]})`);
     } catch (error) {
@@ -438,6 +575,7 @@ export class VisualOcean {
 
       this.alignRootToBoundsCenter(this.islandRoot, this.islandMeshes, anchorCenter);
       this.applyObjectScales();
+      this.rebuildIslandIntersectionFoamField();
       this.islandModelId = modelId;
       console.log(`✅ Island GLB loaded (${ISLAND_MODEL_FILES[modelId]})`);
     } catch (error) {
@@ -887,10 +1025,24 @@ export class VisualOcean {
       return;
     }
 
+    this.ensureIntersectionFoamFieldTextures();
+
     this.shaderRegistry.setUniform('boatCollisionCenter', [this.boatCollisionCenter.x, this.boatCollisionCenter.y, this.boatCollisionCenter.z]);
     this.shaderRegistry.setUniform('islandCollisionCenter', [this.islandCollisionCenter.x, this.islandCollisionCenter.y, this.islandCollisionCenter.z]);
     this.shaderRegistry.setUniform('boatCollisionRadius', this.boatCollisionRadius);
     this.shaderRegistry.setUniform('islandCollisionRadius', this.islandCollisionRadius);
+    this.shaderRegistry.setUniform('boatIntersectionFoamFieldBounds', this.boatIntersectionFoamFieldBounds);
+    this.shaderRegistry.setUniform('islandIntersectionFoamFieldBounds', this.islandIntersectionFoamFieldBounds);
+    this.shaderRegistry.setUniform('boatIntersectionFoamFieldMaxDistance', this.boatIntersectionFoamFieldMaxDistance);
+    this.shaderRegistry.setUniform('islandIntersectionFoamFieldMaxDistance', this.islandIntersectionFoamFieldMaxDistance);
+    this.shaderRegistry.setUniform('boatIntersectionFoamFieldValid', this.boatIntersectionFoamFieldValid);
+    this.shaderRegistry.setUniform('islandIntersectionFoamFieldValid', this.islandIntersectionFoamFieldValid);
+    if (this.boatIntersectionFoamTexture) {
+      this.shaderRegistry.setUniform('boatIntersectionFoamField', this.boatIntersectionFoamTexture);
+    }
+    if (this.islandIntersectionFoamTexture) {
+      this.shaderRegistry.setUniform('islandIntersectionFoamField', this.islandIntersectionFoamTexture);
+    }
     if (this.currentShaderName === 'gerstnerWaves') {
       this.shaderRegistry.setUniform('collisionFoamStrength', this.collisionMode === 1 ? 1.2 : 1.0);
     }
@@ -1017,6 +1169,7 @@ export class VisualOcean {
 
     if (key === 'boatScale') {
       this.applyObjectScales();
+      this.rebuildBoatIntersectionFoamField();
       this.updateCollisionSimulation();
       this.applyCollisionUniforms();
       return;
@@ -1024,6 +1177,7 @@ export class VisualOcean {
 
     if (key === 'islandScale') {
       this.applyObjectScales();
+      this.rebuildIslandIntersectionFoamField();
       this.updateCollisionSimulation();
       this.applyCollisionUniforms();
       return;
@@ -1206,6 +1360,10 @@ export class VisualOcean {
 
   public dispose(): void {
     this.applySpeedBoostState(false);
+    this.boatIntersectionFoamTexture?.dispose();
+    this.islandIntersectionFoamTexture?.dispose();
+    this.boatIntersectionFoamTexture = null;
+    this.islandIntersectionFoamTexture = null;
     this.boatCollisionSphere?.dispose();
     this.islandCollisionSphere?.dispose();
     this.disposeModelNodes(this.boatModelNodes);

@@ -20,6 +20,12 @@ uniform boatCollisionCenter: vec3<f32>;
 uniform islandCollisionCenter: vec3<f32>;
 uniform boatCollisionRadius: f32;
 uniform islandCollisionRadius: f32;
+uniform boatIntersectionFoamFieldBounds: vec4<f32>;
+uniform islandIntersectionFoamFieldBounds: vec4<f32>;
+uniform boatIntersectionFoamFieldMaxDistance: f32;
+uniform islandIntersectionFoamFieldMaxDistance: f32;
+uniform boatIntersectionFoamFieldValid: f32;
+uniform islandIntersectionFoamFieldValid: f32;
 uniform boatIntersectionFactor: f32;
 uniform islandIntersectionFactor: f32;
 uniform specularIntensity: f32;
@@ -46,6 +52,11 @@ uniform profileFresnelPower: f32;
 uniform profileDepthViewScale: f32;
 uniform profileToneGamma: f32;
 uniform profileSpecularClamp: f32;
+
+var boatIntersectionFoamField: texture_2d<f32>;
+var boatIntersectionFoamFieldSampler: sampler;
+var islandIntersectionFoamField: texture_2d<f32>;
+var islandIntersectionFoamFieldSampler: sampler;
 
 varying vWorldPos : vec3<f32>;
 varying vNormal : vec3<f32>;
@@ -89,6 +100,74 @@ fn collisionRingMask(worldPos: vec3<f32>, center: vec3<f32>, radius: f32, width:
   let ring = enter * exit;
   let heightFalloff = smoothstep(verticalRange, 0.0, abs(center.y - worldPos.y));
   return ring * heightFalloff;
+}
+
+fn sampleFoamFieldDistance(
+  tex: texture_2d<f32>,
+  texSampler: sampler,
+  bounds: vec4<f32>,
+  maxDistance: f32,
+  worldPos: vec3<f32>
+) -> vec2<f32> {
+  let size = max(bounds.zw, vec2<f32>(0.001, 0.001));
+  let uv = (worldPos.xz - bounds.xy) / size;
+  let inRange = step(0.0, uv.x) * step(0.0, uv.y) * step(uv.x, 1.0) * step(uv.y, 1.0);
+  let sampled = textureSample(tex, texSampler, clamp(uv, vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 1.0))).r;
+  let signedDistance = (sampled * 2.0 - 1.0) * max(maxDistance, 0.001);
+  return vec2<f32>(signedDistance, inRange);
+}
+
+fn foamFieldMask(
+  worldPos: vec3<f32>,
+  center: vec3<f32>,
+  bounds: vec4<f32>,
+  maxDistance: f32,
+  width: f32,
+  verticalRange: f32,
+  tex: texture_2d<f32>,
+  texSampler: sampler
+) -> f32 {
+  let sampled = sampleFoamFieldDistance(tex, texSampler, bounds, maxDistance, worldPos);
+  let signedDistance = sampled.x;
+  let inRange = sampled.y;
+  let waterSideDistance = max(signedDistance, 0.0);
+  let ring = 1.0 - smoothstep(0.0, max(width, 0.05), waterSideDistance);
+  let heightFalloff = smoothstep(verticalRange, 0.0, abs(center.y - worldPos.y));
+  return ring * heightFalloff * inRange;
+}
+
+fn foamWebPattern(
+  worldPosXZ: vec2<f32>,
+  windDir: vec2<f32>,
+  crossDir: vec2<f32>,
+  freq: f32,
+  windSpd: f32,
+  time: f32,
+  noiseMix: f32
+) -> f32 {
+  let t = time * (0.08 + windSpd * 0.2);
+  let advect = windDir * t + crossDir * (sin(time * 0.17) * 0.35);
+  let uvBase = worldPosXZ * (freq * 0.95) + advect;
+  let uvMid = worldPosXZ * (freq * 2.6) + windDir * (time * 0.22) - crossDir * (time * 0.11);
+  let uvMicro = worldPosXZ * (freq * 8.6) + windDir * (time * 0.56) + crossDir * (time * 0.34);
+
+  let macroCell = valueNoise(uvBase);
+  let midCell = valueNoise(uvMid);
+  let microCell = valueNoise(uvMicro);
+
+  let macroVoid = smoothstep(0.44, 0.86, macroCell);
+  let midVoid = smoothstep(0.5, 0.9, midCell);
+  let lace = (1.0 - macroVoid * 0.84) * (1.0 - midVoid * 0.64);
+
+  let microBubbles = smoothstep(0.58, 0.98, microCell);
+  let bubbleFilm = mix(0.76, 1.26, microBubbles);
+
+  let shearBand = valueNoise(worldPosXZ * (freq * 1.55) + windDir * (time * 0.3));
+  let shearMask = smoothstep(0.34, 0.78, shearBand);
+  let shearGain = mix(0.86, 1.18, shearMask);
+
+  let noiseBlend = clamp(noiseMix, 0.0, 1.0);
+  return clamp(mix(1.0, lace * bubbleFilm * shearGain, noiseBlend), 0.0, 1.35);
 }
 
 @fragment
@@ -150,28 +229,53 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let intersectionNoise = mix(1.0, collisionNoise, clamp(uniforms.intersectionFoamNoise, 0.0, 1.0));
   let intersectionEnabled = step(0.5, uniforms.intersectionFoamEnabled);
   let intersectionFalloff = max(uniforms.intersectionFoamFalloff, 0.1);
-  let boatRing = collisionRingMask(
+  let boatFieldMask = foamFieldMask(
     input.vWorldPos,
     uniforms.boatCollisionCenter,
-    max(uniforms.boatCollisionRadius, 0.0),
+    uniforms.boatIntersectionFoamFieldBounds,
+    uniforms.boatIntersectionFoamFieldMaxDistance,
     max(uniforms.intersectionFoamWidth, 0.1),
-    max(uniforms.intersectionFoamVerticalRange, 0.1)
+    max(uniforms.intersectionFoamVerticalRange, 0.1),
+    boatIntersectionFoamField,
+    boatIntersectionFoamFieldSampler
   );
-  let islandRing = collisionRingMask(
+  let islandFieldMask = foamFieldMask(
     input.vWorldPos,
     uniforms.islandCollisionCenter,
-    max(uniforms.islandCollisionRadius, 0.0),
+    uniforms.islandIntersectionFoamFieldBounds,
+    uniforms.islandIntersectionFoamFieldMaxDistance,
     max(uniforms.intersectionFoamWidth, 0.1),
-    max(uniforms.intersectionFoamVerticalRange, 0.1)
+    max(uniforms.intersectionFoamVerticalRange, 0.1),
+    islandIntersectionFoamField,
+    islandIntersectionFoamFieldSampler
   );
+  let boatFieldValid = step(0.5, uniforms.boatIntersectionFoamFieldValid);
+  let islandFieldValid = step(0.5, uniforms.islandIntersectionFoamFieldValid);
+  let boatRing = boatFieldMask * boatFieldValid;
+  let islandRing = islandFieldMask * islandFieldValid;
+  let shorelineContact = (
+    boatRing * pow(max(uniforms.boatIntersectionFactor, 0.0), intersectionFalloff)
+    + islandRing * pow(max(uniforms.islandIntersectionFactor, 0.0), intersectionFalloff)
+  );
+
+  let webPattern = foamWebPattern(
+    input.vWorldPos.xz,
+    windDir,
+    crossDir,
+    freq,
+    windSpd,
+    uniforms.time,
+    uniforms.intersectionFoamNoise
+  );
+  let laceThickness = smoothstep(0.0, 1.0, shorelineContact);
+  let shorelineLaceGain = mix(0.62, 1.2, pow(laceThickness, 0.65));
   let intersectionFoam = intersectionEnabled
     * max(uniforms.intersectionFoamIntensity, 0.0)
     * max(uniforms.foamIntensity, 0.0)
     * intersectionNoise
-    * (
-      boatRing * pow(max(uniforms.boatIntersectionFactor, 0.0), intersectionFalloff)
-      + islandRing * pow(max(uniforms.islandIntersectionFactor, 0.0), intersectionFalloff)
-    );
+    * shorelineContact
+    * shorelineLaceGain
+    * webPattern;
 
   let scatter = uniforms.profileScatterColor * pow(1.0 - ndv, 1.9) * (0.75 + amp * 0.3);
   let reflectionDir = reflect(-viewDir, normal);

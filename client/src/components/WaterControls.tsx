@@ -150,7 +150,7 @@ const DEFAULT_VALUES: ControlValues = {
   islandShorelineBandWidth: 0.28,
   islandShorelineFoamGain: 1.0,
   collisionMode: 0,
-  showProxySpheres: 1,
+  showProxySpheres: 0,
   cameraDistance: 100,
   cameraHeight: 50,
   cameraAngle: 0,

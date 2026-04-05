@@ -91,6 +91,10 @@ export class VisualOcean {
   private islandIntersectionFoamTexture: RawTexture | null = null;
   private boatIntersectionFoamFieldBounds: [number, number, number, number] = [-16, -28, 8, 8];
   private islandIntersectionFoamFieldBounds: [number, number, number, number] = [16, 4, 12, 12];
+  private boatIntersectionFoamFieldBoundsBase: [number, number, number, number] = [-16, -28, 8, 8];
+  private islandIntersectionFoamFieldBoundsBase: [number, number, number, number] = [16, 4, 12, 12];
+  private boatIntersectionFoamFieldBakeCenterXZ: [number, number] = [-12, -24];
+  private islandIntersectionFoamFieldBakeCenterXZ: [number, number] = [22, 10];
   private boatIntersectionFoamFieldMaxDistance = 6;
   private islandIntersectionFoamFieldMaxDistance = 8;
   private boatIntersectionFoamFieldValid = 0;
@@ -321,6 +325,21 @@ export class VisualOcean {
     }
   }
 
+  private resolveLiveFoamFieldBounds(
+    baseBounds: [number, number, number, number],
+    bakeCenterXZ: [number, number],
+    meshes: AbstractMesh[]
+  ): [number, number, number, number] {
+    const live = this.getBoundsData(meshes);
+    if (!live) {
+      return [...baseBounds] as [number, number, number, number];
+    }
+
+    const dx = live.center.x - bakeCenterXZ[0];
+    const dz = live.center.z - bakeCenterXZ[1];
+    return [baseBounds[0] + dx, baseBounds[1] + dz, baseBounds[2], baseBounds[3]];
+  }
+
   private rebuildBoatIntersectionFoamField(): void {
     if (!this.scene) {
       return;
@@ -357,6 +376,10 @@ export class VisualOcean {
     this.boatIntersectionFoamTexture?.dispose();
     this.boatIntersectionFoamTexture = field.texture;
     this.boatIntersectionFoamFieldBounds = field.bounds;
+    this.boatIntersectionFoamFieldBoundsBase = field.bounds;
+    if (boatBounds) {
+      this.boatIntersectionFoamFieldBakeCenterXZ = [boatBounds.center.x, boatBounds.center.z];
+    }
     this.boatIntersectionFoamFieldMaxDistance = field.maxDistance;
     this.boatIntersectionFoamFieldValid = 1;
     this.boatIntersectionFoamFieldCacheKey = nextKey;
@@ -398,6 +421,10 @@ export class VisualOcean {
     this.islandIntersectionFoamTexture?.dispose();
     this.islandIntersectionFoamTexture = field.texture;
     this.islandIntersectionFoamFieldBounds = field.bounds;
+    this.islandIntersectionFoamFieldBoundsBase = field.bounds;
+    if (islandBounds) {
+      this.islandIntersectionFoamFieldBakeCenterXZ = [islandBounds.center.x, islandBounds.center.z];
+    }
     this.islandIntersectionFoamFieldMaxDistance = field.maxDistance;
     this.islandIntersectionFoamFieldValid = 1;
     this.islandIntersectionFoamFieldCacheKey = nextKey;
@@ -1026,6 +1053,17 @@ export class VisualOcean {
     }
 
     this.ensureIntersectionFoamFieldTextures();
+
+    this.boatIntersectionFoamFieldBounds = this.resolveLiveFoamFieldBounds(
+      this.boatIntersectionFoamFieldBoundsBase,
+      this.boatIntersectionFoamFieldBakeCenterXZ,
+      this.boatMeshes
+    );
+    this.islandIntersectionFoamFieldBounds = this.resolveLiveFoamFieldBounds(
+      this.islandIntersectionFoamFieldBoundsBase,
+      this.islandIntersectionFoamFieldBakeCenterXZ,
+      this.islandMeshes
+    );
 
     this.shaderRegistry.setUniform('boatCollisionCenter', [this.boatCollisionCenter.x, this.boatCollisionCenter.y, this.boatCollisionCenter.z]);
     this.shaderRegistry.setUniform('islandCollisionCenter', [this.islandCollisionCenter.x, this.islandCollisionCenter.y, this.islandCollisionCenter.z]);

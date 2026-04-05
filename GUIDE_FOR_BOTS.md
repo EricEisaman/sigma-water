@@ -5,6 +5,19 @@ This guide is for bots making safe, production-ready changes.
 Primary host target: Render.
 Primary deployment model: Static Site.
 
+## Mission And Spirit
+
+This project exists to build excellent, dependable real-time water rendering that serves people well.
+
+The work should reflect a spirit of stewardship, humility, honesty, and care for quality. In practical terms:
+
+- Build with integrity: no hidden shortcuts, no silent regressions.
+- Protect users: prioritize reliability, safety, and clear behavior.
+- Honor the craft: keep code understandable, testable, and maintainable.
+- Serve the mission: performance and visual quality should support real usefulness, not vanity.
+
+When making tradeoffs, choose what best preserves trust, clarity, and long-term stability.
+
 ## 1) Source Of Truth
 
 - Frontend build system: Vite.
@@ -16,7 +29,9 @@ Primary deployment model: Static Site.
 - Babylon import convention: named imports from @babylonjs/core only. Keep @babylonjs/loaders as side-effect import for GLB loading.
 - Active GLB assets:
    - client/public/assets/models/diving-boat.glb
+   - client/public/assets/models/zodiac-boat.glb
    - client/public/assets/models/island.glb
+   - client/public/assets/models/lighthouse-island.glb
 
 ## 2) Removed Legacy Paths (Do Not Reintroduce)
 
@@ -48,6 +63,14 @@ Only use Render Web Service when explicitly requested.
 4. Interaction correctness: controls update runtime behavior.
 5. Performance tuning.
 
+## 4.1) Event-Driven Runtime Rule (Required)
+
+- Do not introduce timeout- or interval-based control flow in runtime logic.
+- Prefer engine/UI events and observables (for example, scene render observables, input/composition events, and explicit lifecycle callbacks).
+- If a recovery path currently uses delayed polling, replace it with event-driven checks on real render/input/state transitions.
+- Keep behavior deterministic: state transitions should happen because an event fired, not because an arbitrary delay elapsed.
+- For IME composition and dialog key handling, use one-shot event flags consumed on the next key event instead of delay windows.
+
 ## 5) Current Renderer Architecture Notes
 
 - Ocean uses custom WGSL ShaderMaterial in VisualOcean.
@@ -62,10 +85,29 @@ Only use Render Web Service when explicitly requested.
 - Mesh-water intersection foam is driven by runtime intersection factors (boat/island) and can be disabled independently in controls.
 - Crest foam controls are shared across active water shaders and must stay parameter-compatible.
 - Underwater transition is camera-height driven with smooth uniform blending plus scene clear-color interpolation.
+- Island/boat model switching is coalesced: latest requested model should win after async load completes.
+- Toon water supports configurable band colors via uniforms:
+   - toonShadowColorR/G/B
+   - toonMidColorR/G/B
+   - toonLightColorR/G/B
 
 ## 6) Controls Contract
 
 WaterControls persists state to localStorage and URL query params.
+
+Startup conflict behavior:
+
+- If URL params differ from saved localStorage values on load, show a user confirmation modal.
+- User must choose source explicitly:
+   - Keep saved settings (saved values stay authoritative and URL is rewritten to match)
+   - Use link settings (URL values become active and are persisted to localStorage)
+- Do not silently override saved settings when a conflicting link is opened.
+
+Runtime authority:
+
+- localStorage-backed control state is the primary source of truth.
+- URL params are a derived mirror and must be rewritten when authoritative state changes.
+- Cross-tab storage events must update runtime state and URL mirror in an event-driven way.
 
 If adding controls:
 
@@ -78,6 +120,10 @@ If adding controls:
 7. Wire in reset handler.
 8. Handle in VisualOcean updateParameter key map.
 9. Push into shader uniforms if needed at init and per-frame updates.
+
+Notes for persistence compatibility:
+
+- `waterType` in localStorage may be stored as an object (`{ type: ... }`); parse object shape first before string fallback.
 
 ## 7) Render Incident Playbook
 
@@ -132,6 +178,12 @@ Before finishing production work:
     - boat and island visible
     - controls update values live
     - no GLB 404s
+
+6. PWA checks:
+   - manifest.webmanifest loads with no errors
+   - manifest includes valid icons (192, 512, maskable) and screenshots
+   - service worker registers in production build and activates
+   - offline navigation serves app shell
 
 ## 10) Known Deferred Investigation
 

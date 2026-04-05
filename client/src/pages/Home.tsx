@@ -163,9 +163,6 @@ export default function Home() {
             🌊 Sigma Water
           </h1>
           <p className="text-sm text-gray-600 mt-1 font-medium">SIGGRAPH-Grade Ocean Renderer</p>
-          <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500">
-            <p>📊 Features: Caustics • Foam • PBR Lighting • IBL Sky • Boat Physics</p>
-          </div>
         </div>
       )}
 

@@ -1,8 +1,18 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Settings2, Eye, Wind, Boxes } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { RotateCcw, Settings2, Eye, Wind, Boxes, Menu, X } from 'lucide-react';
 import { orbitCameraPosition } from '@/lib/cameraOrbit';
 import { 
   BOAT_MODEL_OPTIONS,
@@ -53,7 +63,16 @@ type ControlValues = {
   underwaterColorR: number;
   underwaterColorG: number;
   underwaterColorB: number;
-  causticIntensity: number;
+    toonShadowColorR: number;
+    toonShadowColorG: number;
+    toonShadowColorB: number;
+    toonMidColorR: number;
+    toonMidColorG: number;
+    toonMidColorB: number;
+    toonLightColorR: number;
+    toonLightColorG: number;
+    toonLightColorB: number;
+    causticIntensity: number;
   skyReflectionMix: number;
   normalDetailStrength: number;
   normalDistanceFalloff: number;
@@ -104,7 +123,16 @@ const DEFAULT_VALUES: ControlValues = {
   underwaterColorR: 0.03,
   underwaterColorG: 0.16,
   underwaterColorB: 0.24,
-  causticIntensity: 0.85,
+    toonShadowColorR: 0.04,
+    toonShadowColorG: 0.18,
+    toonShadowColorB: 0.32,
+    toonMidColorR: 0.10,
+    toonMidColorG: 0.42,
+    toonMidColorB: 0.62,
+    toonLightColorR: 0.40,
+    toonLightColorG: 0.82,
+    toonLightColorB: 0.95,
+    causticIntensity: 0.85,
   skyReflectionMix: 0.72,
   normalDetailStrength: 0.55,
   normalDistanceFalloff: 0.03,
@@ -153,7 +181,16 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   underwaterColorR: 'ucr',
   underwaterColorG: 'ucg',
   underwaterColorB: 'ucb',
-  causticIntensity: 'ci',
+    toonShadowColorR: 'tsr',
+    toonShadowColorG: 'tsg',
+    toonShadowColorB: 'tsb',
+    toonMidColorR: 'tmr',
+    toonMidColorG: 'tmg',
+    toonMidColorB: 'tmb',
+    toonLightColorR: 'tlr',
+    toonLightColorG: 'tlg',
+    toonLightColorB: 'tlb',
+    causticIntensity: 'ci',
   skyReflectionMix: 'srm',
   normalDetailStrength: 'nds',
   normalDistanceFalloff: 'ndf',
@@ -176,47 +213,131 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   waterType: 'wt',
 };
 
+const CONTROL_KEYS = Object.keys(DEFAULT_VALUES) as Array<keyof ControlValues>;
 
+type StartupSettingsConflict = {
+  savedValues: ControlValues;
+  linkValues: ControlValues;
+};
 
-function getInitialValues(): ControlValues {
-  if (typeof window === 'undefined') return DEFAULT_VALUES;
+type StartupSettingsResolution = {
+  initialValues: ControlValues;
+  conflict: StartupSettingsConflict | null;
+};
 
-  let stored: Partial<ControlValues> = {};
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) stored = JSON.parse(raw) as Partial<ControlValues>;
-  } catch {
-    stored = {};
+function parseControlValue(key: keyof ControlValues, sourceVal: unknown): ControlValues[keyof ControlValues] | undefined {
+  if (sourceVal === undefined || sourceVal === null) return undefined;
+
+  if (key === 'waterType') {
+    const typeStr =
+      typeof sourceVal === 'object' && sourceVal !== null && 'type' in sourceVal
+        ? String((sourceVal as { type: unknown }).type)
+        : String(sourceVal);
+    return parseWaterType(typeStr);
   }
 
-  const params = new URLSearchParams(window.location.search);
+  if (key === 'boatModel') {
+    return sourceVal === 'zodiacBoat' ? 'zodiacBoat' : 'divingBoat';
+  }
+
+  if (key === 'islandModel') {
+    return sourceVal === 'lighthouseIsland' ? 'lighthouseIsland' : 'boathouseIsland';
+  }
+
+  const parsed = Number(sourceVal);
+  if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+    return parsed;
+  }
+
+  return undefined;
+}
+
+function buildControlValues(
+  stored: Partial<ControlValues>,
+  params: URLSearchParams,
+  preferUrlParams: boolean
+): ControlValues {
   const next: ControlValues = { ...DEFAULT_VALUES };
 
-  (Object.keys(DEFAULT_VALUES) as Array<keyof ControlValues>).forEach((key) => {
+  CONTROL_KEYS.forEach((key) => {
     const shortKey = PARAM_KEYS[key];
     const paramVal = params.get(shortKey);
-    const sourceVal = paramVal ?? (stored[key] as any);
-    if (sourceVal === undefined || sourceVal === null) return;
-
-    if (key === 'waterType') {
-      next[key] = parseWaterType(String(sourceVal));
-    } else if (key === 'boatModel') {
-      next[key] = sourceVal === 'zodiacBoat' ? 'zodiacBoat' : 'divingBoat';
-    } else if (key === 'islandModel') {
-      next[key] = sourceVal === 'lighthouseIsland' ? 'lighthouseIsland' : 'boathouseIsland';
-    } else {
-      const parsed = Number(sourceVal);
-      if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
-        (next as any)[key] = parsed;
-      }
+    const storedVal = stored[key] as unknown;
+    const sourceVal = preferUrlParams ? (paramVal ?? storedVal) : (storedVal ?? paramVal);
+    const parsed = parseControlValue(key, sourceVal);
+    if (parsed !== undefined) {
+      (next as Record<keyof ControlValues, unknown>)[key] = parsed;
     }
   });
 
   return next;
 }
 
+function hasRecognizedUrlParams(params: URLSearchParams): boolean {
+  return CONTROL_KEYS.some((key) => {
+    const shortKey = PARAM_KEYS[key];
+    return params.has(shortKey);
+  });
+}
+
+function areControlValuesEqual(a: ControlValues, b: ControlValues): boolean {
+  return CONTROL_KEYS.every((key) => {
+    if (key === 'waterType') {
+      return serializeWaterType(a[key]) === serializeWaterType(b[key]);
+    }
+    return a[key] === b[key];
+  });
+}
+
+function getStartupSettingsResolution(): StartupSettingsResolution {
+  if (typeof window === 'undefined') {
+    return {
+      initialValues: DEFAULT_VALUES,
+      conflict: null,
+    };
+  }
+
+  let stored: Partial<ControlValues> = {};
+  let hasStoredValues = false;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      stored = JSON.parse(raw) as Partial<ControlValues>;
+      hasStoredValues = true;
+    }
+  } catch {
+    stored = {};
+    hasStoredValues = false;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const urlHasSettings = hasRecognizedUrlParams(params);
+  const savedValues = buildControlValues(stored, params, false);
+  const linkValues = buildControlValues(stored, params, true);
+
+  if (!hasStoredValues) {
+    return {
+      initialValues: linkValues,
+      conflict: null,
+    };
+  }
+
+  if (urlHasSettings && !areControlValuesEqual(savedValues, linkValues)) {
+    return {
+      initialValues: savedValues,
+      conflict: { savedValues, linkValues },
+    };
+  }
+
+  return {
+    initialValues: savedValues,
+    conflict: null,
+  };
+}
+
 export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange }: WaterControlsProps) {
-  const initialValues = useState<ControlValues>(() => getInitialValues())[0];
+  const startupResolution = useState<StartupSettingsResolution>(() => getStartupSettingsResolution())[0];
+  const initialValues = startupResolution.initialValues;
 
   // Wave parameters
   const [waveAmplitude, setWaveAmplitude] = useState(initialValues.waveAmplitude);
@@ -246,7 +367,16 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [underwaterColorR, setUnderwaterColorR] = useState(initialValues.underwaterColorR);
   const [underwaterColorG, setUnderwaterColorG] = useState(initialValues.underwaterColorG);
   const [underwaterColorB, setUnderwaterColorB] = useState(initialValues.underwaterColorB);
-  const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
+    const [toonShadowColorR, setToonShadowColorR] = useState(initialValues.toonShadowColorR);
+    const [toonShadowColorG, setToonShadowColorG] = useState(initialValues.toonShadowColorG);
+    const [toonShadowColorB, setToonShadowColorB] = useState(initialValues.toonShadowColorB);
+    const [toonMidColorR, setToonMidColorR] = useState(initialValues.toonMidColorR);
+    const [toonMidColorG, setToonMidColorG] = useState(initialValues.toonMidColorG);
+    const [toonMidColorB, setToonMidColorB] = useState(initialValues.toonMidColorB);
+    const [toonLightColorR, setToonLightColorR] = useState(initialValues.toonLightColorR);
+    const [toonLightColorG, setToonLightColorG] = useState(initialValues.toonLightColorG);
+    const [toonLightColorB, setToonLightColorB] = useState(initialValues.toonLightColorB);
+    const [causticIntensity, setCausticIntensity] = useState(initialValues.causticIntensity);
   const [skyReflectionMix, setSkyReflectionMix] = useState(initialValues.skyReflectionMix);
   const [normalDetailStrength, setNormalDetailStrength] = useState(initialValues.normalDetailStrength);
   const [normalDistanceFalloff, setNormalDistanceFalloff] = useState(initialValues.normalDistanceFalloff);
@@ -276,6 +406,77 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
   // UI state
   const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | 'waterType' | null>('waves');
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [pendingStartupConflict, setPendingStartupConflict] = useState<StartupSettingsConflict | null>(startupResolution.conflict);
+  const [isStartupResolved, setIsStartupResolved] = useState(startupResolution.conflict === null);
+  const skipNextLocalStorageWriteRef = useRef(false);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const missingParamKeys = CONTROL_KEYS.filter((key) => !(key in PARAM_KEYS));
+    if (missingParamKeys.length > 0) {
+      console.warn('Missing PARAM_KEYS entries for controls:', missingParamKeys);
+    }
+  }, []);
+
+  const setControlStateFromValues = useCallback((values: ControlValues) => {
+    setWaveAmplitude(values.waveAmplitude);
+    setWaveFrequency(values.waveFrequency);
+    setWindDirection(values.windDirection);
+    setWindSpeed(values.windSpeed);
+    setCrestFoamEnabled(values.crestFoamEnabled);
+    setCrestFoamThreshold(values.crestFoamThreshold);
+    setFoamIntensity(values.foamIntensity);
+    setFoamWidth(values.foamWidth);
+    setFoamNoiseFactor(values.foamNoiseFactor);
+    setFoamCellScale(values.foamCellScale);
+    setFoamShredSlope(values.foamShredSlope);
+    setFoamFizzWeight(values.foamFizzWeight);
+    setIntersectionFoamEnabled(values.intersectionFoamEnabled);
+    setIntersectionFoamIntensity(values.intersectionFoamIntensity);
+    setIntersectionFoamWidth(values.intersectionFoamWidth);
+    setIntersectionFoamFalloff(values.intersectionFoamFalloff);
+    setIntersectionFoamNoise(values.intersectionFoamNoise);
+    setIntersectionFoamVerticalRange(values.intersectionFoamVerticalRange);
+    setUnderwaterEnabled(values.underwaterEnabled);
+    setUnderwaterTransitionDepth(values.underwaterTransitionDepth);
+    setUnderwaterFogDensity(values.underwaterFogDensity);
+    setUnderwaterHorizonMix(values.underwaterHorizonMix);
+    setUnderwaterColorR(values.underwaterColorR);
+    setUnderwaterColorG(values.underwaterColorG);
+    setUnderwaterColorB(values.underwaterColorB);
+    setToonShadowColorR(values.toonShadowColorR);
+    setToonShadowColorG(values.toonShadowColorG);
+    setToonShadowColorB(values.toonShadowColorB);
+    setToonMidColorR(values.toonMidColorR);
+    setToonMidColorG(values.toonMidColorG);
+    setToonMidColorB(values.toonMidColorB);
+    setToonLightColorR(values.toonLightColorR);
+    setToonLightColorG(values.toonLightColorG);
+    setToonLightColorB(values.toonLightColorB);
+    setCausticIntensity(values.causticIntensity);
+    setSkyReflectionMix(values.skyReflectionMix);
+    setNormalDetailStrength(values.normalDetailStrength);
+    setNormalDistanceFalloff(values.normalDistanceFalloff);
+    setDepthFadeDistance(values.depthFadeDistance);
+    setDepthFadeExponent(values.depthFadeExponent);
+    setSpecularIntensity(values.specularIntensity);
+    setBoatModel(values.boatModel);
+    setBoatScale(values.boatScale);
+    setBoatYOffset(values.boatYOffset);
+    setIslandModel(values.islandModel);
+    setIslandScale(values.islandScale);
+    setIslandYOffset(values.islandYOffset);
+    setIslandShorelineBandWidth(values.islandShorelineBandWidth);
+    setIslandShorelineFoamGain(values.islandShorelineFoamGain);
+    setCollisionMode(values.collisionMode);
+    setShowProxySpheres(values.showProxySpheres);
+    setCameraDistance(values.cameraDistance);
+    setCameraHeight(values.cameraHeight);
+    setCameraAngle(values.cameraAngle);
+    setWaterType(values.waterType);
+  }, []);
 
   const handleWaveAmplitudeChange = useCallback((value: number[]) => {
     const val = value[0];
@@ -292,63 +493,113 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const ISLAND_X = 22;
   const ISLAND_Z = 10;
 
-  useEffect(() => {
-    // Ensure renderer state matches restored controls on first mount.
-    onParameterChange('waveAmplitude', initialValues.waveAmplitude);
-    onParameterChange('waveFrequency', initialValues.waveFrequency);
-    onParameterChange('windDirection', initialValues.windDirection);
-    onParameterChange('windSpeed', initialValues.windSpeed);
-    onParameterChange('crestFoamEnabled', initialValues.crestFoamEnabled);
-    onParameterChange('crestFoamThreshold', initialValues.crestFoamThreshold);
-    onParameterChange('foamIntensity', initialValues.foamIntensity);
-    onParameterChange('foamWidth', initialValues.foamWidth);
-    onParameterChange('foamNoiseFactor', initialValues.foamNoiseFactor);
-    onParameterChange('foamCellScale', initialValues.foamCellScale);
-    onParameterChange('foamShredSlope', initialValues.foamShredSlope);
-    onParameterChange('foamFizzWeight', initialValues.foamFizzWeight);
-    onParameterChange('intersectionFoamEnabled', initialValues.intersectionFoamEnabled);
-    onParameterChange('intersectionFoamIntensity', initialValues.intersectionFoamIntensity);
-    onParameterChange('intersectionFoamWidth', initialValues.intersectionFoamWidth);
-    onParameterChange('intersectionFoamFalloff', initialValues.intersectionFoamFalloff);
-    onParameterChange('intersectionFoamNoise', initialValues.intersectionFoamNoise);
-    onParameterChange('intersectionFoamVerticalRange', initialValues.intersectionFoamVerticalRange);
-    onParameterChange('underwaterEnabled', initialValues.underwaterEnabled);
-    onParameterChange('underwaterTransitionDepth', initialValues.underwaterTransitionDepth);
-    onParameterChange('underwaterFogDensity', initialValues.underwaterFogDensity);
-    onParameterChange('underwaterHorizonMix', initialValues.underwaterHorizonMix);
-    onParameterChange('underwaterColorR', initialValues.underwaterColorR);
-    onParameterChange('underwaterColorG', initialValues.underwaterColorG);
-    onParameterChange('underwaterColorB', initialValues.underwaterColorB);
-    onParameterChange('causticIntensity', initialValues.causticIntensity);
-    onParameterChange('skyReflectionMix', initialValues.skyReflectionMix);
-    onParameterChange('normalDetailStrength', initialValues.normalDetailStrength);
-    onParameterChange('normalDistanceFalloff', initialValues.normalDistanceFalloff);
-    onParameterChange('depthFadeDistance', initialValues.depthFadeDistance);
-    onParameterChange('depthFadeExponent', initialValues.depthFadeExponent);
-    onParameterChange('specularIntensity', initialValues.specularIntensity);
-    onBoatModelChange?.(initialValues.boatModel);
-    onParameterChange('boatScale', initialValues.boatScale);
-    onParameterChange('boatYOffset', initialValues.boatYOffset);
-    onIslandModelChange?.(initialValues.islandModel);
-    onParameterChange('islandScale', initialValues.islandScale);
-    onParameterChange('islandYOffset', initialValues.islandYOffset);
-    onParameterChange('islandShorelineBandWidth', initialValues.islandShorelineBandWidth);
-    onParameterChange('islandShorelineFoamGain', initialValues.islandShorelineFoamGain);
-    onParameterChange('collisionMode', initialValues.collisionMode);
-    onCollisionModeChange?.(initialValues.collisionMode);
-    onParameterChange('showProxySpheres', initialValues.showProxySpheres);
+  const pushValuesToRuntime = useCallback((values: ControlValues) => {
+    onParameterChange('waveAmplitude', values.waveAmplitude);
+    onParameterChange('waveFrequency', values.waveFrequency);
+    onParameterChange('windDirection', values.windDirection);
+    onParameterChange('windSpeed', values.windSpeed);
+    onParameterChange('crestFoamEnabled', values.crestFoamEnabled);
+    onParameterChange('crestFoamThreshold', values.crestFoamThreshold);
+    onParameterChange('foamIntensity', values.foamIntensity);
+    onParameterChange('foamWidth', values.foamWidth);
+    onParameterChange('foamNoiseFactor', values.foamNoiseFactor);
+    onParameterChange('foamCellScale', values.foamCellScale);
+    onParameterChange('foamShredSlope', values.foamShredSlope);
+    onParameterChange('foamFizzWeight', values.foamFizzWeight);
+    onParameterChange('intersectionFoamEnabled', values.intersectionFoamEnabled);
+    onParameterChange('intersectionFoamIntensity', values.intersectionFoamIntensity);
+    onParameterChange('intersectionFoamWidth', values.intersectionFoamWidth);
+    onParameterChange('intersectionFoamFalloff', values.intersectionFoamFalloff);
+    onParameterChange('intersectionFoamNoise', values.intersectionFoamNoise);
+    onParameterChange('intersectionFoamVerticalRange', values.intersectionFoamVerticalRange);
+    onParameterChange('underwaterEnabled', values.underwaterEnabled);
+    onParameterChange('underwaterTransitionDepth', values.underwaterTransitionDepth);
+    onParameterChange('underwaterFogDensity', values.underwaterFogDensity);
+    onParameterChange('underwaterHorizonMix', values.underwaterHorizonMix);
+    onParameterChange('underwaterColorR', values.underwaterColorR);
+    onParameterChange('underwaterColorG', values.underwaterColorG);
+    onParameterChange('underwaterColorB', values.underwaterColorB);
+    onParameterChange('toonShadowColorR', values.toonShadowColorR);
+    onParameterChange('toonShadowColorG', values.toonShadowColorG);
+    onParameterChange('toonShadowColorB', values.toonShadowColorB);
+    onParameterChange('toonMidColorR', values.toonMidColorR);
+    onParameterChange('toonMidColorG', values.toonMidColorG);
+    onParameterChange('toonMidColorB', values.toonMidColorB);
+    onParameterChange('toonLightColorR', values.toonLightColorR);
+    onParameterChange('toonLightColorG', values.toonLightColorG);
+    onParameterChange('toonLightColorB', values.toonLightColorB);
+    onParameterChange('causticIntensity', values.causticIntensity);
+    onParameterChange('skyReflectionMix', values.skyReflectionMix);
+    onParameterChange('normalDetailStrength', values.normalDetailStrength);
+    onParameterChange('normalDistanceFalloff', values.normalDistanceFalloff);
+    onParameterChange('depthFadeDistance', values.depthFadeDistance);
+    onParameterChange('depthFadeExponent', values.depthFadeExponent);
+    onParameterChange('specularIntensity', values.specularIntensity);
+    onBoatModelChange?.(values.boatModel);
+    onParameterChange('boatScale', values.boatScale);
+    onParameterChange('boatYOffset', values.boatYOffset);
+    onIslandModelChange?.(values.islandModel);
+    onParameterChange('islandScale', values.islandScale);
+    onParameterChange('islandYOffset', values.islandYOffset);
+    onParameterChange('islandShorelineBandWidth', values.islandShorelineBandWidth);
+    onParameterChange('islandShorelineFoamGain', values.islandShorelineFoamGain);
+    onParameterChange('collisionMode', values.collisionMode);
+    onCollisionModeChange?.(values.collisionMode);
+    onParameterChange('showProxySpheres', values.showProxySpheres);
+    onShaderChange?.(values.waterType);
 
     const position = orbitCameraPosition(
       { x: ISLAND_X, z: ISLAND_Z },
-      initialValues.cameraAngle,
-      initialValues.cameraDistance,
-      initialValues.cameraHeight
+      values.cameraAngle,
+      values.cameraDistance,
+      values.cameraHeight
     );
     onCameraChange(position.x, position.y, position.z);
-  }, [initialValues, onParameterChange, onCameraChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange]);
+  }, [onParameterChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange, onShaderChange, onCameraChange]);
+
+  const handleKeepSavedSettings = useCallback(() => {
+    setPendingStartupConflict(null);
+    setIsStartupResolved(true);
+  }, []);
+
+  const handleUseLinkSettings = useCallback(() => {
+    if (!pendingStartupConflict) {
+      return;
+    }
+    setControlStateFromValues(pendingStartupConflict.linkValues);
+    pushValuesToRuntime(pendingStartupConflict.linkValues);
+    setPendingStartupConflict(null);
+    setIsStartupResolved(true);
+  }, [pendingStartupConflict, setControlStateFromValues, pushValuesToRuntime]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    // Sync runtime to startup source. If URL conflicts with saved settings,
+    // we keep saved values until the user chooses in the conflict modal.
+    pushValuesToRuntime(initialValues);
+  }, [initialValues, pushValuesToRuntime]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isStartupResolved) return;
+
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || !event.newValue) return;
+      try {
+        const incoming = JSON.parse(event.newValue) as Partial<ControlValues>;
+        const nextValues = buildControlValues(incoming, new URLSearchParams(), false);
+        skipNextLocalStorageWriteRef.current = true;
+        setControlStateFromValues(nextValues);
+        pushValuesToRuntime(nextValues);
+      } catch {
+        // Ignore malformed external payloads.
+      }
+    };
+
+    window.addEventListener('storage', handleStorageSync);
+    return () => window.removeEventListener('storage', handleStorageSync);
+  }, [isStartupResolved, setControlStateFromValues, pushValuesToRuntime]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isStartupResolved) return;
 
     const values: ControlValues = {
       waveAmplitude,
@@ -376,6 +627,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       underwaterColorR,
       underwaterColorG,
       underwaterColorB,
+      toonShadowColorR,
+      toonShadowColorG,
+      toonShadowColorB,
+      toonMidColorR,
+      toonMidColorG,
+      toonMidColorB,
+      toonLightColorR,
+      toonLightColorG,
+      toonLightColorB,
       causticIntensity,
       skyReflectionMix,
       normalDetailStrength,
@@ -399,7 +659,12 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       waterType,
     };
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+    const skipLocalStorageWrite = skipNextLocalStorageWriteRef.current;
+    if (skipLocalStorageWrite) {
+      skipNextLocalStorageWriteRef.current = false;
+    } else {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
+    }
 
     const params = new URLSearchParams(window.location.search);
     (Object.keys(values) as Array<keyof ControlValues>).forEach((key) => {
@@ -439,7 +704,16 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     underwaterColorR,
     underwaterColorG,
     underwaterColorB,
-    causticIntensity,
+      toonShadowColorR,
+      toonShadowColorG,
+      toonShadowColorB,
+      toonMidColorR,
+      toonMidColorG,
+      toonMidColorB,
+      toonLightColorR,
+      toonLightColorG,
+      toonLightColorB,
+      causticIntensity,
     skyReflectionMix,
     normalDetailStrength,
     normalDistanceFalloff,
@@ -460,6 +734,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraHeight,
     cameraAngle,
     waterType,
+    isStartupResolved,
   ]);
 
   const handleWindDirectionChange = useCallback((value: number[]) => {
@@ -597,6 +872,60 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('underwaterColorB', val);
   }, [onParameterChange]);
 
+    const handleToonShadowColorRChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonShadowColorR(val);
+      onParameterChange('toonShadowColorR', val);
+    }, [onParameterChange]);
+
+    const handleToonShadowColorGChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonShadowColorG(val);
+      onParameterChange('toonShadowColorG', val);
+    }, [onParameterChange]);
+
+    const handleToonShadowColorBChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonShadowColorB(val);
+      onParameterChange('toonShadowColorB', val);
+    }, [onParameterChange]);
+
+    const handleToonMidColorRChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonMidColorR(val);
+      onParameterChange('toonMidColorR', val);
+    }, [onParameterChange]);
+
+    const handleToonMidColorGChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonMidColorG(val);
+      onParameterChange('toonMidColorG', val);
+    }, [onParameterChange]);
+
+    const handleToonMidColorBChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonMidColorB(val);
+      onParameterChange('toonMidColorB', val);
+    }, [onParameterChange]);
+
+    const handleToonLightColorRChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonLightColorR(val);
+      onParameterChange('toonLightColorR', val);
+    }, [onParameterChange]);
+
+    const handleToonLightColorGChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonLightColorG(val);
+      onParameterChange('toonLightColorG', val);
+    }, [onParameterChange]);
+
+    const handleToonLightColorBChange = useCallback((value: number[]) => {
+      const val = value[0];
+      setToonLightColorB(val);
+      onParameterChange('toonLightColorB', val);
+    }, [onParameterChange]);
+
   const handleCausticIntensityChange = useCallback((value: number[]) => {
     const val = value[0];
     setCausticIntensity(val);
@@ -726,76 +1055,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   }, [onCameraChange, cameraDistance, cameraHeight]);
 
   const handleReset = useCallback(() => {
-    setWaveAmplitude(1.8);
-    setWaveFrequency(1.2);
-    setWindDirection(45);
-    setWindSpeed(0.6);
-    setFoamIntensity(0.7);
-    setFoamWidth(1.0);
-    setFoamNoiseFactor(0.45);
-    setFoamCellScale(0.115);
-    setFoamShredSlope(0.56);
-    setFoamFizzWeight(0.28);
-    setCausticIntensity(0.85);
-    setSkyReflectionMix(0.72);
-    setNormalDetailStrength(0.55);
-    setNormalDistanceFalloff(0.03);
-    setDepthFadeDistance(1.15);
-    setDepthFadeExponent(1.65);
-    setSpecularIntensity(1.0);
-    setBoatModel('divingBoat');
-    setBoatScale(1);
-    setBoatYOffset(0.4);
-    setIslandModel('boathouseIsland');
-    setIslandScale(1);
-    setIslandYOffset(0);
-    setIslandShorelineBandWidth(0.28);
-    setIslandShorelineFoamGain(1.0);
-    setCollisionMode(0);
-    setShowProxySpheres(1);
-    setCameraDistance(100);
-    setCameraHeight(50);
-    setCameraAngle(0);
-    const defaultWaterType = { type: 'gerstnerWaves' as const };
-    setWaterType(defaultWaterType);
-
-    onParameterChange('waveAmplitude', 1.8);
-    onParameterChange('waveFrequency', 1.2);
-    onParameterChange('windDirection', 45);
-    onParameterChange('windSpeed', 0.6);
-    onParameterChange('foamIntensity', 0.7);
-    onParameterChange('foamWidth', 1.0);
-    onParameterChange('foamNoiseFactor', 0.45);
-    onParameterChange('foamCellScale', 0.115);
-    onParameterChange('foamShredSlope', 0.56);
-    onParameterChange('foamFizzWeight', 0.28);
-    onParameterChange('causticIntensity', 0.85);
-    onParameterChange('skyReflectionMix', 0.72);
-    onParameterChange('normalDetailStrength', 0.55);
-    onParameterChange('normalDistanceFalloff', 0.03);
-    onParameterChange('depthFadeDistance', 1.15);
-    onParameterChange('depthFadeExponent', 1.65);
-    onParameterChange('specularIntensity', 1.0);
-    onBoatModelChange?.('divingBoat');
-    onParameterChange('boatScale', 1);
-    onParameterChange('boatYOffset', 0.4);
-    onIslandModelChange?.('boathouseIsland');
-    onParameterChange('islandScale', 1);
-    onParameterChange('islandYOffset', 0);
-    onParameterChange('islandShorelineBandWidth', 0.28);
-    onParameterChange('islandShorelineFoamGain', 1.0);
-    onParameterChange('collisionMode', 0);
-    onCollisionModeChange?.(0);
-    onParameterChange('showProxySpheres', 1);
-    
-    // Reset shader
-    if (onShaderChange) {
-      onShaderChange(defaultWaterType);
-    }
-    
-    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, 0, 100, 50);
-    onCameraChange(position.x, position.y, position.z);
-  }, [onParameterChange, onCameraChange, onShaderChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange]);
+    setControlStateFromValues(DEFAULT_VALUES);
+    pushValuesToRuntime(DEFAULT_VALUES);
+  }, [setControlStateFromValues, pushValuesToRuntime]);
 
   const handleShaderChange = useCallback((shaderName: string) => {
     const newWaterType = parseWaterType(shaderName);
@@ -825,11 +1087,45 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     'normalDistanceFalloff',
     'depthFadeDistance',
     'depthFadeExponent',
+      'toonShadowColorR',
+      'toonMidColorR',
+      'toonLightColorR',
     'specularIntensity',
   ].some((key) => supportsShaderControl(key as ShaderControlKey));
 
+  const startupConflictDialog = (
+    <AlertDialog open={pendingStartupConflict !== null}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Link Settings Detected</AlertDialogTitle>
+          <AlertDialogDescription>
+            This link has control settings that differ from your saved settings. Would you like to replace your saved settings with the link values?
+          </AlertDialogDescription>
+          <p className="text-xs text-slate-500">
+            Current choice: Keep My Saved Settings (default)
+          </p>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleKeepSavedSettings}>Keep My Saved Settings</AlertDialogCancel>
+          <AlertDialogAction onClick={handleUseLinkSettings}>Use Link Settings</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  const panelTransitionClasses = isPanelCollapsed
+    ? 'opacity-0 translate-y-2 scale-95 pointer-events-none'
+    : 'opacity-100 translate-y-0 scale-100 pointer-events-auto';
+
+  const chipTransitionClasses = isPanelCollapsed
+    ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+    : 'opacity-0 translate-y-2 scale-95 pointer-events-none';
+
   return (
-    <div className="fixed bottom-4 right-4 w-96 max-h-[600px] overflow-y-auto bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl z-50 select-none">
+    <>
+    <div
+      className={`fixed bottom-4 right-4 w-96 max-h-[600px] overflow-y-auto bg-gradient-to-b from-slate-900/95 to-slate-950/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl z-50 select-none transform-gpu transition-all duration-200 ease-out ${panelTransitionClasses}`}
+    >
       <Card className="border-0 shadow-none bg-transparent">
         <CardHeader className="pb-3 border-b border-slate-700/30">
           <div className="flex items-center justify-between">
@@ -837,15 +1133,26 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
               <CardTitle className="text-xl font-bold text-white">🌊 Controls</CardTitle>
               <CardDescription className="text-xs text-slate-400 mt-1">SIGGRAPH-Grade Rendering</CardDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReset}
-              title="Reset to defaults"
-              className="h-8 w-8 p-0 hover:bg-slate-700/50"
-            >
-              <RotateCcw className="h-4 w-4 text-slate-300" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReset}
+                title="Reset to defaults"
+                className="h-8 w-8 p-0 hover:bg-slate-700/50"
+              >
+                <RotateCcw className="h-4 w-4 text-slate-300" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsPanelCollapsed(true)}
+                title="Close controls"
+                className="h-8 w-8 p-0 hover:bg-slate-700/50"
+              >
+                <X className="h-4 w-4 text-slate-300" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
@@ -1204,6 +1511,141 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     step={0.05}
                     className="w-full"
                   />
+                </div>
+                )}
+
+                {supportsShaderControl('toonShadowColorR') && (
+                <div className="space-y-3 border-t border-slate-700/30 pt-3 mt-3">
+                  <label className="text-sm font-medium text-slate-300">Toon Shadow Color</label>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Red: <span className="text-red-400 font-bold">{toonShadowColorR.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonShadowColorR]}
+                      onValueChange={(v) => handleToonShadowColorRChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Green: <span className="text-green-400 font-bold">{toonShadowColorG.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonShadowColorG]}
+                      onValueChange={(v) => handleToonShadowColorGChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Blue: <span className="text-blue-400 font-bold">{toonShadowColorB.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonShadowColorB]}
+                      onValueChange={(v) => handleToonShadowColorBChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+                )}
+
+                {supportsShaderControl('toonMidColorR') && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-slate-300">Toon Mid Color</label>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Red: <span className="text-red-400 font-bold">{toonMidColorR.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonMidColorR]}
+                      onValueChange={(v) => handleToonMidColorRChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Green: <span className="text-green-400 font-bold">{toonMidColorG.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonMidColorG]}
+                      onValueChange={(v) => handleToonMidColorGChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Blue: <span className="text-blue-400 font-bold">{toonMidColorB.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonMidColorB]}
+                      onValueChange={(v) => handleToonMidColorBChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+                )}
+
+                {supportsShaderControl('toonLightColorR') && (
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-slate-300">Toon Light Color</label>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Red: <span className="text-red-400 font-bold">{toonLightColorR.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonLightColorR]}
+                      onValueChange={(v) => handleToonLightColorRChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Green: <span className="text-green-400 font-bold">{toonLightColorG.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonLightColorG]}
+                      onValueChange={(v) => handleToonLightColorGChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs text-slate-400">
+                      Blue: <span className="text-blue-400 font-bold">{toonLightColorB.toFixed(2)}</span>
+                    </label>
+                    <Slider
+                      value={[toonLightColorB]}
+                      onValueChange={(v) => handleToonLightColorBChange(v)}
+                      min={0.0}
+                      max={1.0}
+                      step={0.01}
+                      className="w-full"
+                    />
+                  </div>
                 </div>
                 )}
 
@@ -1587,5 +2029,16 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
         </CardContent>
       </Card>
     </div>
+    <button
+      type="button"
+      onClick={() => setIsPanelCollapsed(false)}
+      className={`fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-2xl border border-slate-600/60 bg-slate-900/90 px-3 py-2 text-slate-100 shadow-xl backdrop-blur-md hover:bg-slate-800/90 transform-gpu transition-all duration-200 ease-out ${chipTransitionClasses}`}
+      aria-label="Open controls"
+    >
+      <Menu className="h-4 w-4" />
+      <span className="text-xs font-semibold">Controls</span>
+    </button>
+    {startupConflictDialog}
+    </>
   );
 }

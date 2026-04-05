@@ -17,9 +17,6 @@ export interface UseCompositionOptions<
   onCompositionStart?: React.CompositionEventHandler<T>;
   onCompositionEnd?: React.CompositionEventHandler<T>;
 }
-
-type TimerResponse = ReturnType<typeof setTimeout>;
-
 export function useComposition<
   T extends HTMLInputElement | HTMLTextAreaElement = HTMLInputElement,
 >(options: UseCompositionOptions<T> = {}): UseCompositionReturn<T> {
@@ -30,36 +27,30 @@ export function useComposition<
   } = options;
 
   const c = useRef(false);
-  const timer = useRef<TimerResponse | null>(null);
-  const timer2 = useRef<TimerResponse | null>(null);
+  const justEndedComposing = useRef(false);
 
   const onCompositionStart = usePersistFn((e: React.CompositionEvent<T>) => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (timer2.current) {
-      clearTimeout(timer2.current);
-      timer2.current = null;
-    }
     c.current = true;
+    justEndedComposing.current = false;
     originalOnCompositionStart?.(e);
   });
 
   const onCompositionEnd = usePersistFn((e: React.CompositionEvent<T>) => {
-    // 使用两层 setTimeout 来处理 Safari 浏览器中 compositionEnd 先于 onKeyDown 触发的问题
-    timer.current = setTimeout(() => {
-      timer2.current = setTimeout(() => {
-        c.current = false;
-      });
-    });
+    // Event-driven Safari guard: if compositionEnd precedes keydown, block one follow-up Enter/Escape.
+    c.current = false;
+    justEndedComposing.current = true;
     originalOnCompositionEnd?.(e);
   });
 
   const onKeyDown = usePersistFn((e: React.KeyboardEvent<T>) => {
+    const endedOnPreviousEvent = justEndedComposing.current;
+    if (endedOnPreviousEvent) {
+      justEndedComposing.current = false;
+    }
+
     // 在 composition 状态下，阻止 ESC 和 Enter（非 shift+Enter）事件的冒泡
     if (
-      c.current &&
+      (c.current || endedOnPreviousEvent) &&
       (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey))
     ) {
       e.stopPropagation();

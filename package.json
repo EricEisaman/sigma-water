@@ -16,6 +16,7 @@
     "verify:render-markers": "node scripts/verify-render-markers.mjs --file .manus-logs/browserConsole.log --minutes 10 --max-staleness-minutes 20",
     "verify:all": "pnpm test && pnpm check && pnpm verify:runtime-log && pnpm verify:render-markers",
     "verify:concise": "pnpm test -- --reporter=dot && pnpm check && pnpm verify:runtime-log && pnpm verify:render-markers",
+    "smoke:controls": "node scripts/playwright-smoke-controls.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write ."
@@ -91,6 +92,7 @@
     "add": "^2.0.6",
     "autoprefixer": "^10.4.20",
     "esbuild": "^0.25.0",
+    "playwright": "^1.54.2",
     "pnpm": "^10.15.1",
     "postcss": "^8.4.47",
     "prettier": "^3.6.2",

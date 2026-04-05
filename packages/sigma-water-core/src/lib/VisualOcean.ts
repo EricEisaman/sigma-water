@@ -62,7 +62,6 @@ export class VisualOcean {
   private lastFrameTimeMs = 0;
   private lastAdaptiveRetierCheckMs = 0;
   private elapsedTime = 0;
-  private renderHealthCheckHandle: ReturnType<typeof setTimeout> | null = null;
   private hasLoggedFirstFrame = false;
   private boatRoot: TransformNode | null = null;
   private islandRoot: TransformNode | null = null;
@@ -74,6 +73,10 @@ export class VisualOcean {
   private islandCollisionSphere: Mesh | null = null;
   private boatModelId: BoatModelId = 'divingBoat';
   private islandModelId: IslandModelId = 'boathouseIsland';
+  private boatModelLoading = false;
+  private pendingBoatModel: BoatModelId | null = null;
+  private islandModelLoading = false;
+  private pendingIslandModel: IslandModelId | null = null;
   private boatCollisionCenter = new Vector3(-12, 0.4, -24);
   private islandCollisionCenter = new Vector3(22, 0, 10);
   private boatCollisionRadius = 2.2;
@@ -251,10 +254,10 @@ export class VisualOcean {
     // Apply initial shader
     await this.switchShader('gerstnerWaves');
 
-    // In dev/HMR cycles, recover automatically if the first material attach is lost.
-    this.renderHealthCheckHandle = setTimeout(() => {
+    // Event-driven first-frame health check to recover material loss during dev/HMR.
+    this.scene.onAfterRenderObservable.addOnce(() => {
       this.verifyRenderStateAndRecover();
-    }, 300);
+    });
   }
 
   private setupCollisionDebugProxies(): void {
@@ -1046,9 +1049,24 @@ export class VisualOcean {
       return;
     }
 
-    await this.loadBoatModel(modelId);
-    this.updateCollisionSimulation();
-    this.applyCollisionUniforms();
+    this.pendingBoatModel = modelId;
+
+    if (this.boatModelLoading) {
+      return;
+    }
+
+    this.boatModelLoading = true;
+    try {
+      while (this.pendingBoatModel !== null) {
+        const nextModel = this.pendingBoatModel;
+        this.pendingBoatModel = null;
+        await this.loadBoatModel(nextModel);
+        this.updateCollisionSimulation();
+        this.applyCollisionUniforms();
+      }
+    } finally {
+      this.boatModelLoading = false;
+    }
   }
 
   public async setIslandModel(modelId: string): Promise<void> {
@@ -1056,9 +1074,24 @@ export class VisualOcean {
       return;
     }
 
-    await this.loadIslandModel(modelId);
-    this.updateCollisionSimulation();
-    this.applyCollisionUniforms();
+    this.pendingIslandModel = modelId;
+
+    if (this.islandModelLoading) {
+      return;
+    }
+
+    this.islandModelLoading = true;
+    try {
+      while (this.pendingIslandModel !== null) {
+        const nextModel = this.pendingIslandModel;
+        this.pendingIslandModel = null;
+        await this.loadIslandModel(nextModel);
+        this.updateCollisionSimulation();
+        this.applyCollisionUniforms();
+      }
+    } finally {
+      this.islandModelLoading = false;
+    }
   }
 
   public updateCamera(x: number, y: number, z: number): void {
@@ -1137,10 +1170,6 @@ export class VisualOcean {
   }
 
   public dispose(): void {
-    if (this.renderHealthCheckHandle) {
-      clearTimeout(this.renderHealthCheckHandle);
-      this.renderHealthCheckHandle = null;
-    }
     this.boatCollisionSphere?.dispose();
     this.islandCollisionSphere?.dispose();
     this.disposeModelNodes(this.boatModelNodes);

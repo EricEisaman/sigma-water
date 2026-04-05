@@ -51,6 +51,15 @@ export type ShaderControlKey =
   | 'underwaterColorR'
   | 'underwaterColorG'
   | 'underwaterColorB'
+  | 'toonShadowColorR'
+  | 'toonShadowColorG'
+  | 'toonShadowColorB'
+  | 'toonMidColorR'
+  | 'toonMidColorG'
+  | 'toonMidColorB'
+  | 'toonLightColorR'
+  | 'toonLightColorG'
+  | 'toonLightColorB'
   | 'causticIntensity'
   | 'specularIntensity'
   | 'skyReflectionMix'
@@ -85,6 +94,15 @@ export const SHADER_CONTROL_KEYS: readonly ShaderControlKey[] = [
   'underwaterColorR',
   'underwaterColorG',
   'underwaterColorB',
+  'toonShadowColorR',
+  'toonShadowColorG',
+  'toonShadowColorB',
+  'toonMidColorR',
+  'toonMidColorG',
+  'toonMidColorB',
+  'toonLightColorR',
+  'toonLightColorG',
+  'toonLightColorB',
   'causticIntensity',
   'specularIntensity',
   'skyReflectionMix',
@@ -177,6 +195,15 @@ export const ToonWater: IWater = {
     'underwaterColorR',
     'underwaterColorG',
     'underwaterColorB',
+    'toonShadowColorR',
+    'toonShadowColorG',
+    'toonShadowColorB',
+    'toonMidColorR',
+    'toonMidColorG',
+    'toonMidColorB',
+    'toonLightColorR',
+    'toonLightColorG',
+    'toonLightColorB',
     'specularIntensity',
   ],
 } as const;

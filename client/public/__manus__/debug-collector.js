@@ -247,6 +247,7 @@
     };
     store.uiEvents.push(entry);
     pruneBuffer(store.uiEvents, CONFIG.bufferSize.ui);
+    scheduleReport();
   }
 
   function installUiEventListeners() {
@@ -393,6 +394,7 @@
 
       store.consoleLogs.push(entry);
       pruneBuffer(store.consoleLogs, CONFIG.bufferSize.console);
+      scheduleReport();
 
       originalConsole[method].apply(console, args);
     };
@@ -415,6 +417,7 @@
       stack: event.error ? event.error.stack : null,
     });
     pruneBuffer(store.consoleLogs, CONFIG.bufferSize.console);
+    scheduleReport();
 
     // Mark an error moment in UI event stream for agents
     logUiEvent("error", {
@@ -440,6 +443,7 @@
       stack: reason && reason.stack ? reason.stack : null,
     });
     pruneBuffer(store.consoleLogs, CONFIG.bufferSize.console);
+    scheduleReport();
 
     logUiEvent("unhandledrejection", {
       reason: reason && reason.message ? reason.message : String(reason),
@@ -523,6 +527,7 @@
           entry.response.body = "[Streaming response - not captured]";
           store.networkRequests.push(entry);
           pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+          scheduleReport();
           return response;
         }
 
@@ -531,6 +536,7 @@
           entry.response.body = "[Response too large: " + contentLength + " bytes]";
           store.networkRequests.push(entry);
           pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+          scheduleReport();
           return response;
         }
 
@@ -545,6 +551,7 @@
           entry.response.body = "[Binary content: " + contentType + "]";
           store.networkRequests.push(entry);
           pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+          scheduleReport();
           return response;
         }
 
@@ -567,6 +574,7 @@
           .finally(function () {
             store.networkRequests.push(entry);
             pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+            scheduleReport();
           });
 
         // Return response immediately, don't wait for body reading
@@ -578,6 +586,7 @@
 
         store.networkRequests.push(entry);
         pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+        scheduleReport();
 
         logUiEvent("network_error", {
           kind: "fetch",
@@ -670,6 +679,7 @@
 
         store.networkRequests.push(entry);
         pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+        scheduleReport();
 
         if (entry.response && entry.response.status >= 400) {
           logUiEvent("network_error", {
@@ -696,6 +706,7 @@
 
         store.networkRequests.push(entry);
         pruneBuffer(store.networkRequests, CONFIG.bufferSize.network);
+        scheduleReport();
 
         logUiEvent("network_error", {
           kind: "xhr",
@@ -712,6 +723,26 @@
   // ==========================================================================
   // Data Reporting
   // ==========================================================================
+
+  var reportInFlight = false;
+  var reportScheduled = false;
+
+  function scheduleReport() {
+    if (reportInFlight || reportScheduled) {
+      return;
+    }
+    reportScheduled = true;
+    queueMicrotask(function () {
+      reportScheduled = false;
+      if (reportInFlight) {
+        return;
+      }
+      reportInFlight = true;
+      Promise.resolve(reportLogs()).finally(function () {
+        reportInFlight = false;
+      });
+    });
+  }
 
   function reportLogs() {
     var consoleLogs = store.consoleLogs.splice(0);
@@ -753,8 +784,20 @@
     });
   }
 
-  // Periodic reporting
-  setInterval(reportLogs, CONFIG.reportInterval);
+  // Event-driven reporting triggers
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      scheduleReport();
+    }
+  });
+
+  window.addEventListener("pagehide", function () {
+    scheduleReport();
+  });
+
+  window.addEventListener("online", function () {
+    scheduleReport();
+  });
 
   // Report on page unload
   window.addEventListener("beforeunload", function () {

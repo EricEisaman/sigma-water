@@ -31,6 +31,15 @@ uniform underwaterColorR: f32;
 uniform underwaterColorG: f32;
 uniform underwaterColorB: f32;
 uniform underwaterFactor: f32;
+uniform toonShadowColorR: f32;
+uniform toonShadowColorG: f32;
+uniform toonShadowColorB: f32;
+uniform toonMidColorR: f32;
+uniform toonMidColorG: f32;
+uniform toonMidColorB: f32;
+uniform toonLightColorR: f32;
+uniform toonLightColorG: f32;
+uniform toonLightColorB: f32;
 
 varying vWorldPos : vec3<f32>;
 varying vNormal : vec3<f32>;
@@ -94,9 +103,9 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
   let band2 = step(0.7, litValue);
   let bandMix = band0 * 0.28 + band1 * 0.32 + band2 * 0.4;
 
-  let shadowColor = vec3<f32>(0.02, 0.11, 0.17);
-  let midColor = vec3<f32>(0.07, 0.28, 0.4);
-  let lightColor = vec3<f32>(0.24, 0.62, 0.76);
+  let shadowColor = vec3<f32>(uniforms.toonShadowColorR, uniforms.toonShadowColorG, uniforms.toonShadowColorB);
+  let midColor = vec3<f32>(uniforms.toonMidColorR, uniforms.toonMidColorG, uniforms.toonMidColorB);
+  let lightColor = vec3<f32>(uniforms.toonLightColorR, uniforms.toonLightColorG, uniforms.toonLightColorB);
   let bandColor = mix(shadowColor, midColor, bandMix);
   let toonBase = mix(bandColor, lightColor, band2 * 0.8);
 
@@ -149,10 +158,10 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
   var color = toonBase + vec3<f32>(rimLight + foam + intersectionFoam * 0.55 + reflectionBand + glint);
   let fog = clamp(1.0 - ndv, 0.0, 1.0) * 0.1;
-  color = mix(color, vec3<f32>(0.1, 0.3, 0.41), fog);
-  let colorMapped = color / (vec3<f32>(1.0) + color * 1.8);
+  color = mix(color, vec3<f32>(0.15, 0.48, 0.64), fog);
+  let colorMapped = color / (vec3<f32>(1.0) + color * 1.2);
   let luma = dot(colorMapped, vec3<f32>(0.2126, 0.7152, 0.0722));
-  let lumaClamp = min(1.0, 0.74 / max(luma, 0.0001));
+  let lumaClamp = min(1.0, 0.88 / max(luma, 0.0001));
   color = colorMapped * lumaClamp;
 
   let underwaterEnabled = step(0.5, uniforms.underwaterEnabled);

@@ -7,12 +7,12 @@ import * as React from "react";
 const DialogCompositionContext = React.createContext<{
   isComposing: () => boolean;
   setComposing: (composing: boolean) => void;
-  justEndedComposing: () => boolean;
+  consumeJustEndedComposing: () => boolean;
   markCompositionEnd: () => void;
 }>({
   isComposing: () => false,
   setComposing: () => {},
-  justEndedComposing: () => false,
+  consumeJustEndedComposing: () => false,
   markCompositionEnd: () => {},
 });
 
@@ -24,7 +24,6 @@ function Dialog({
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   const composingRef = React.useRef(false);
   const justEndedRef = React.useRef(false);
-  const endTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const contextValue = React.useMemo(
     () => ({
@@ -32,15 +31,13 @@ function Dialog({
       setComposing: (composing: boolean) => {
         composingRef.current = composing;
       },
-      justEndedComposing: () => justEndedRef.current,
+      consumeJustEndedComposing: () => {
+        const ended = justEndedRef.current;
+        justEndedRef.current = false;
+        return ended;
+      },
       markCompositionEnd: () => {
         justEndedRef.current = true;
-        if (endTimerRef.current) {
-          clearTimeout(endTimerRef.current);
-        }
-        endTimerRef.current = setTimeout(() => {
-          justEndedRef.current = false;
-        }, 150);
       },
     }),
     []

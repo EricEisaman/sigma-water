@@ -1328,6 +1328,12 @@ export class VisualOcean {
       this.islandCollisionSphere.position.y = islandBaseWaterHeight + islandYOffset;
     }
 
+    if (this.collisionMode === 0 && this.islandCollisionSphere) {
+      this.islandCollisionSphere.position.x = islandBaseX;
+      this.islandCollisionSphere.position.z = islandBaseZ;
+      this.islandCollisionSphere.position.y = islandBaseWaterHeight + islandYOffset;
+    }
+
     if (!this.islandRoot) {
       this.islandCollisionCenter.x = islandBaseX;
       this.islandCollisionCenter.z = islandBaseZ;
@@ -1641,6 +1647,26 @@ export class VisualOcean {
     }
 
     if (key === 'boatX' || key === 'boatZ' || key === 'islandX' || key === 'islandZ' || key === 'boatYOffset' || key === 'islandYOffset') {
+      const boatBaseX = this.getBoatBaseX();
+      const boatBaseZ = this.getBoatBaseZ();
+      const islandBaseX = this.getIslandBaseX();
+      const islandBaseZ = this.getIslandBaseZ();
+      const boatYOffset = this.parameterState.boatYOffset ?? 0.4;
+      const islandYOffset = this.parameterState.islandYOffset ?? 0;
+
+      if (this.boatCollisionSphere) {
+        const boatHeight = this.sampleWaterSurface(boatBaseX, boatBaseZ).height;
+        this.boatCollisionSphere.position.set(boatBaseX, boatHeight + boatYOffset, boatBaseZ);
+      }
+
+      if (this.islandCollisionSphere) {
+        const islandHeight = this.sampleWaterSurface(islandBaseX, islandBaseZ).height;
+        this.islandCollisionSphere.position.set(islandBaseX, islandHeight + islandYOffset, islandBaseZ);
+      }
+
+      this.boatRippleVelocity.set(0, 0, 0);
+      this.boatVerticalVelocity = 0;
+      this.moveGlbsToSpheres(false);
       this.updateCollisionSimulation();
       this.applyCollisionUniforms();
       return;

@@ -184,10 +184,10 @@ void main(void) {
   vec3 L = normalize(vec3(0.4, 1.0, 0.2));
 
   float cameraDist = max(length(vPositionW - cameraPosition), 0.001);
-  float eps = max(cameraDist * 0.0002, 0.01);
+  float eps = max(cameraDist * 0.00025, 0.02);
   float detailStrengthControl = clamp(normalDetailStrength, 0.0, 1.0);
   float detailFalloffControl = max(normalDistanceFalloff, 0.01);
-  float detailScale = mix(0.9, 5.2, detailStrengthControl) / (0.35 + detailFalloffControl * 8.0);
+  float detailScale = mix(0.55, 2.2, detailStrengthControl) / (0.65 + detailFalloffControl * 12.0);
   mat2 rotA = mat2(0.8660254, -0.5, 0.5, 0.8660254);
   vec2 detailUv = (rotA * vPositionW.xz) * detailScale;
   float d0 = fbm(detailUv);
@@ -195,7 +195,7 @@ void main(void) {
   float dz = fbm(detailUv + vec2(0.0, eps));
   vec3 detailN = normalize(vec3(-(dx - d0) / eps, 1.0, -(dz - d0) / eps));
 
-  float detailWeight = clamp(exp(-cameraDist * (0.0018 + detailFalloffControl * 0.02)), 0.12, 1.0) * detailStrengthControl;
+  float detailWeight = clamp(exp(-cameraDist * (0.0032 + detailFalloffControl * 0.045)), 0.0, 1.0) * detailStrengthControl * 0.55;
   vec3 N = normalize(mix(baseN, detailN, detailWeight));
   vec3 H = normalize(L + V);
 

@@ -120,7 +120,7 @@ float octaveDisplacement(
     choppy = mix(choppy, 1.0, 0.2);
   }
 
-  return h * (0.24 + windSpd * 0.05);
+  return h * (0.14 + windSpd * 0.035);
 }
 
 float travelingHeight(
@@ -168,9 +168,9 @@ void main(void) {
   float windSpd = max(windSpeed, 0.0);
 
   float longWave = travelingHeight(position.xz, time, freq, amp, windSpd, windDir, crossDir);
-  float chop = octaveDisplacement(position.xz, time, freq * 0.72, amp * 0.44, windSpd, windDir, crossDir);
+  float chop = octaveDisplacement(position.xz, time, freq * 0.55, amp * 0.22, windSpd, windDir, crossDir);
   float wave = longWave + chop;
-  float normalizedWave = wave / max(amp * 2.2 + 0.05, 0.05);
+  float normalizedWave = wave / max(amp * 1.8 + 0.08, 0.05);
 
   vec3 displaced = vec3(position.x, position.y + wave, position.z);
   vec4 worldPos = world * vec4(displaced, 1.0);

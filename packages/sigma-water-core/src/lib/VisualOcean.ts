@@ -19,7 +19,9 @@ import {
   Vector3,
   Color3,
   Color4,
+  BaseTexture,
   EXRCubeTexture,
+  HDRCubeTexture,
   DepthRenderer,
   Constants,
   RawTexture,
@@ -293,12 +295,53 @@ export class VisualOcean {
     await this.applyEnvironmentMap(this.config.environmentMapPath);
   }
 
+  private createEnvironmentTexture(environmentMapPath: string): BaseTexture {
+    if (!this.scene) {
+      throw new Error('Scene not initialized');
+    }
+
+    const normalizedPath = environmentMapPath.toLowerCase();
+    if (normalizedPath.endsWith('.hdr')) {
+      return new HDRCubeTexture(
+        environmentMapPath,
+        this.scene,
+        512,
+        false,
+        true,
+        false,
+        true,
+        undefined,
+        undefined,
+        false,
+        true,
+      );
+    }
+
+    if (normalizedPath.endsWith('.exr')) {
+      return new EXRCubeTexture(
+        environmentMapPath,
+        this.scene,
+        512,
+        false,
+        true,
+        false,
+        true,
+        undefined,
+        undefined,
+        false,
+        true,
+      );
+    }
+
+    throw new Error(`Unsupported environment map format: ${environmentMapPath}`);
+  }
+
   private async applyEnvironmentMap(environmentMapPath: string): Promise<void> {
     if (!this.scene) throw new Error('Scene not initialized');
 
     try {
       const previousTexture = this.scene.environmentTexture;
-      const envTexture = new EXRCubeTexture(environmentMapPath, this.scene, 512);
+      const envTexture = this.createEnvironmentTexture(environmentMapPath);
       this.skyboxMesh?.dispose();
       this.scene.environmentTexture = envTexture;
       this.scene.environmentIntensity = 1.2;

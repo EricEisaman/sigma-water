@@ -41,8 +41,11 @@ interface WaterControlsProps {
 }
 
 const SKY_PRESET_OPTIONS = [
-  { file: 'citrus_orchard_road_puresky_1k.exr', label: 'Citrus Orchard - Pure Sky' },
-  { file: 'kiara_1_dawn_1k.exr', label: 'Kiara Dawn' },
+  { file: 'citrus_orchard_road_puresky_1k.exr', label: 'Citrus Orchard - Pure Sky (EXR)' },
+  { file: 'citrus_orchard_road_puresky_1k.hdr', label: 'Citrus Orchard - Pure Sky (HDR)' },
+  { file: 'golden_gate_hills_1k.hdr', label: 'Golden Gate Hills (HDR)' },
+  { file: 'kiara_1_dawn_1k.exr', label: 'Kiara Dawn (EXR)' },
+  { file: 'overcast_soil_puresky_1k.hdr', label: 'Overcast Soil - Pure Sky (HDR)' },
 ] as const;
 
 type SkyPresetFile = (typeof SKY_PRESET_OPTIONS)[number]['file'];

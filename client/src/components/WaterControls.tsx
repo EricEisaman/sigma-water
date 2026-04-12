@@ -504,6 +504,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [cameraDistance, setCameraDistance] = useState(initialValues.cameraDistance);
   const [cameraHeight, setCameraHeight] = useState(initialValues.cameraHeight);
   const [cameraAngle, setCameraAngle] = useState(initialValues.cameraAngle);
+  const [isTopDownView, setIsTopDownView] = useState(false);
+  const previousCameraTransformRef = useRef<{ distance: number; height: number; angle: number } | null>(null);
 
   // Water type (shader selection)
   const [waterType, setWaterType] = useState(initialValues.waterType);
@@ -1344,6 +1346,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCameraDistanceChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraDistance(val);
+    setIsTopDownView(false);
+    previousCameraTransformRef.current = null;
     const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, cameraAngle, val, cameraHeight);
     onCameraChange(position.x, position.y, position.z);
   }, [onCameraChange, cameraAngle, cameraHeight]);
@@ -1351,6 +1355,8 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCameraHeightChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraHeight(val);
+    setIsTopDownView(false);
+    previousCameraTransformRef.current = null;
     const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, cameraAngle, cameraDistance, val);
     onCameraChange(position.x, position.y, position.z);
   }, [onCameraChange, cameraAngle, cameraDistance]);
@@ -1358,11 +1364,39 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const handleCameraAngleChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraAngle(val);
+    setIsTopDownView(false);
+    previousCameraTransformRef.current = null;
     const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, val, cameraDistance, cameraHeight);
     onCameraChange(position.x, position.y, position.z);
   }, [onCameraChange, cameraDistance, cameraHeight]);
 
+  const handleToggleTopDownView = useCallback(() => {
+    if (isTopDownView) {
+      const previous = previousCameraTransformRef.current;
+      if (previous) {
+        setCameraDistance(previous.distance);
+        setCameraHeight(previous.height);
+        setCameraAngle(previous.angle);
+        const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, previous.angle, previous.distance, previous.height);
+        onCameraChange(position.x, position.y, position.z);
+      }
+      previousCameraTransformRef.current = null;
+      setIsTopDownView(false);
+      return;
+    }
+
+    previousCameraTransformRef.current = {
+      distance: cameraDistance,
+      height: cameraHeight,
+      angle: cameraAngle,
+    };
+    onTopDownView();
+    setIsTopDownView(true);
+  }, [isTopDownView, cameraDistance, cameraHeight, cameraAngle, onCameraChange, onTopDownView]);
+
   const handleReset = useCallback(() => {
+    setIsTopDownView(false);
+    previousCameraTransformRef.current = null;
     setControlStateFromValues(DEFAULT_VALUES);
     pushValuesToRuntime(DEFAULT_VALUES);
   }, [setControlStateFromValues, pushValuesToRuntime]);
@@ -2550,10 +2584,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
                 <Button
                   type="button"
-                  onClick={onTopDownView}
+                  onClick={handleToggleTopDownView}
                   className="w-full bg-green-600 hover:bg-green-500 text-white"
                 >
-                  Top-Down View
+                  {isTopDownView ? 'Normal View' : 'Top Down View'}
                 </Button>
               </div>
             )}

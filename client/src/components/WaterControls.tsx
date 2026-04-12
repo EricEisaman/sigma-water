@@ -2218,9 +2218,9 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   <Slider
                     value={[boatScale]}
                     onValueChange={(v) => handleBoatScaleChange(v)}
-                    min={0.5}
+                    min={0.01}
                     max={2.0}
-                    step={0.05}
+                    step={0.01}
                     className="w-full"
                   />
                 </div>

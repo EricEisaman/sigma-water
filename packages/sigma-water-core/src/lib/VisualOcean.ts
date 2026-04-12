@@ -695,6 +695,32 @@ export class VisualOcean {
       ?? fallbackRoot;
   }
 
+  private getRenderableImportedMeshes(
+    result: Awaited<ReturnType<typeof SceneLoader.ImportMeshAsync>>,
+    importedRoot: AbstractMesh | TransformNode | null
+  ): AbstractMesh[] {
+    const isRenderableMesh = (node: AbstractMesh): boolean => {
+      if (!(node instanceof Mesh)) {
+        return false;
+      }
+      const indices = node.getIndices();
+      return node.getTotalVertices() > 0 && !!indices && indices.length > 0;
+    };
+
+    const excludingRoot = result.meshes.filter((mesh) => mesh !== importedRoot);
+    const excludingRootRenderable = excludingRoot.filter(isRenderableMesh);
+    if (excludingRootRenderable.length > 0) {
+      return excludingRootRenderable;
+    }
+
+    const allRenderable = result.meshes.filter(isRenderableMesh);
+    if (allRenderable.length > 0) {
+      return allRenderable;
+    }
+
+    return excludingRoot;
+  }
+
   private getBoatAnchorCenter(): Vector3 {
     if (this.boatCollisionSphere) {
       return this.boatCollisionSphere.position.clone();
@@ -730,8 +756,8 @@ export class VisualOcean {
 
     try {
       const boatResult = await SceneLoader.ImportMeshAsync('', this.config.modelsBasePath, BOAT_MODEL_FILES[modelId], this.scene);
-      const nextBoatMeshes = boatResult.meshes.filter((m) => m.name !== '__root__');
       const boatSceneRoot = this.getModelRoot(boatResult, this.boatRoot);
+      const nextBoatMeshes = this.getRenderableImportedMeshes(boatResult, boatSceneRoot);
 
       if (boatSceneRoot && boatSceneRoot !== this.boatRoot) {
         boatSceneRoot.parent = this.boatRoot;
@@ -755,10 +781,10 @@ export class VisualOcean {
 
       this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, anchorCenter);
       this.applyObjectScales();
-      this.rebuildBoatIntersectionFoamField();
-      this.boatHeadingYawInitialized = false;
       this.boatModelId = modelId;
       this.moveGlbsToSpheres(false);
+      this.rebuildBoatIntersectionFoamField();
+      this.boatHeadingYawInitialized = false;
       console.log(`✅ Boat GLB loaded (${BOAT_MODEL_FILES[modelId]})`);
     } catch (error) {
       this.boatMeshes = previousBoatMeshes;
@@ -779,8 +805,8 @@ export class VisualOcean {
 
     try {
       const islandResult = await SceneLoader.ImportMeshAsync('', this.config.modelsBasePath, ISLAND_MODEL_FILES[modelId], this.scene);
-      this.islandMeshes = islandResult.meshes.filter((m) => m.name !== '__root__');
       const islandSceneRoot = this.getModelRoot(islandResult, this.islandRoot);
+      this.islandMeshes = this.getRenderableImportedMeshes(islandResult, islandSceneRoot);
 
       if (islandSceneRoot && islandSceneRoot !== this.islandRoot) {
         islandSceneRoot.parent = this.islandRoot;
@@ -799,9 +825,9 @@ export class VisualOcean {
 
       this.alignRootToBoundsCenter(this.islandRoot, this.islandMeshes, anchorCenter);
       this.applyObjectScales();
-      this.rebuildIslandIntersectionFoamField();
       this.islandModelId = modelId;
       this.moveGlbsToSpheres(false);
+      this.rebuildIslandIntersectionFoamField();
       console.log(`✅ Island GLB loaded (${ISLAND_MODEL_FILES[modelId]})`);
     } catch (error) {
       console.warn(`⚠️ Island GLB load failed (${ISLAND_MODEL_FILES[modelId]}), using proxy-only island collision`, error);
@@ -1125,6 +1151,7 @@ export class VisualOcean {
       if (!mesh.isEnabled()) {
         continue;
       }
+      mesh.computeWorldMatrix(true);
       const bounds = mesh.getBoundingInfo().boundingBox;
       minX = Math.min(minX, bounds.minimumWorld.x);
       minY = Math.min(minY, bounds.minimumWorld.y);

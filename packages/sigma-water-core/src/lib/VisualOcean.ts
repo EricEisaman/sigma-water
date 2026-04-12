@@ -784,8 +784,7 @@ export class VisualOcean {
     if (this.islandRoot) {
       return this.islandRoot.getAbsolutePosition().clone();
     }
-    const waterHeight = this.sampleWaterSurface(this.getIslandBaseX(), this.getIslandBaseZ()).height;
-    return new Vector3(this.getIslandBaseX(), waterHeight + (this.parameterState.islandYOffset ?? 0), this.getIslandBaseZ());
+    return new Vector3(this.getIslandBaseX(), this.parameterState.islandYOffset ?? 0, this.getIslandBaseZ());
   }
 
   private async loadBoatModel(modelId: BoatModelId): Promise<void> {
@@ -1412,19 +1411,19 @@ export class VisualOcean {
     if (!rippleFluxActive && this.collisionMode === 1 && this.islandCollisionSphere) {
       this.islandCollisionSphere.position.x = islandBaseX;
       this.islandCollisionSphere.position.z = islandBaseZ;
-      this.islandCollisionSphere.position.y = islandBaseWaterHeight + islandYOffset;
+      this.islandCollisionSphere.position.y = islandYOffset;
     }
 
     if (this.collisionMode === 0 && this.islandCollisionSphere) {
       this.islandCollisionSphere.position.x = islandBaseX;
       this.islandCollisionSphere.position.z = islandBaseZ;
-      this.islandCollisionSphere.position.y = islandBaseWaterHeight + islandYOffset;
+      this.islandCollisionSphere.position.y = islandYOffset;
     }
 
     if (!this.islandRoot) {
       this.islandCollisionCenter.x = islandBaseX;
       this.islandCollisionCenter.z = islandBaseZ;
-      this.islandCollisionCenter.y = islandBaseWaterHeight + islandYOffset;
+      this.islandCollisionCenter.y = islandYOffset;
     }
 
     if (!rippleFluxActive && this.collisionMode === 1) {
@@ -1747,8 +1746,7 @@ export class VisualOcean {
       }
 
       if (this.islandCollisionSphere) {
-        const islandHeight = this.sampleWaterSurface(islandBaseX, islandBaseZ).height;
-        this.islandCollisionSphere.position.set(islandBaseX, islandHeight + islandYOffset, islandBaseZ);
+        this.islandCollisionSphere.position.set(islandBaseX, islandYOffset, islandBaseZ);
       }
 
       this.boatRippleVelocity.set(0, 0, 0);

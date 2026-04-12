@@ -1,6 +1,7 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { oceanVertexShader, oceanFragmentShader } from '../wgsl';
+import { oceanVertexShaderGLSL, oceanFragmentShaderGLSL } from '../glsl';
 
 export const oceanWavesDefinition: ShaderRegistryEntry = {
   id: 'oceanWaves',
@@ -17,6 +18,10 @@ export const oceanWavesDefinition: ShaderRegistryEntry = {
   shader: {
     vertex: oceanVertexShader,
     fragment: oceanFragmentShader,
+    fallback: {
+      vertex: oceanVertexShaderGLSL,
+      fragment: oceanFragmentShaderGLSL,
+    },
   },
   
   babylon: {

@@ -1,6 +1,7 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { waterVertexShader, profiledOceanFragmentShader } from '../wgsl';
+import { waterVertexShaderGLSL, profiledOceanFragmentShaderGLSL } from '../glsl';
 
 export const gerstnerWavesDefinition: ShaderRegistryEntry = {
   id: 'gerstnerWaves',
@@ -17,6 +18,10 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
   shader: {
     vertex: waterVertexShader,
     fragment: profiledOceanFragmentShader,
+    fallback: {
+      vertex: waterVertexShaderGLSL,
+      fragment: profiledOceanFragmentShaderGLSL,
+    },
   },
   
   babylon: {
@@ -41,6 +46,8 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
       'intersectionFoamFalloff',
       'intersectionFoamNoise',
       'intersectionFoamVerticalRange',
+      'islandShorelineBandWidth',
+      'islandShorelineFoamGain',
       'boatIntersectionFactor',
       'islandIntersectionFactor',
       'causticIntensity',
@@ -109,6 +116,8 @@ export const gerstnerWavesDefinition: ShaderRegistryEntry = {
     intersectionFoamFalloff: 1,
     intersectionFoamNoise: 0.45,
     intersectionFoamVerticalRange: 1.8,
+    islandShorelineBandWidth: 0.28,
+    islandShorelineFoamGain: 1.0,
     boatIntersectionFactor: 0,
     islandIntersectionFactor: 0,
     causticIntensity: 0.85,

@@ -1,6 +1,7 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { waterVertexShader, toonFragmentShader } from '../wgsl';
+import { waterVertexShaderGLSL, toonFragmentShaderGLSL } from '../glsl';
 
 export const toonWaterDefinition: ShaderRegistryEntry = {
   id: 'toonWater',
@@ -17,6 +18,10 @@ export const toonWaterDefinition: ShaderRegistryEntry = {
   shader: {
     vertex: waterVertexShader,
     fragment: toonFragmentShader,
+    fallback: {
+      vertex: waterVertexShaderGLSL,
+      fragment: toonFragmentShaderGLSL,
+    },
   },
   
   babylon: {
@@ -38,6 +43,8 @@ export const toonWaterDefinition: ShaderRegistryEntry = {
       'intersectionFoamFalloff',
       'intersectionFoamNoise',
       'intersectionFoamVerticalRange',
+      'islandShorelineBandWidth',
+      'islandShorelineFoamGain',
       'boatCollisionCenter',
       'islandCollisionCenter',
       'boatCollisionRadius',
@@ -92,6 +99,8 @@ export const toonWaterDefinition: ShaderRegistryEntry = {
     intersectionFoamFalloff: 1,
     intersectionFoamNoise: 0.45,
     intersectionFoamVerticalRange: 1.8,
+    islandShorelineBandWidth: 0.28,
+    islandShorelineFoamGain: 1.0,
     boatCollisionCenter: [0, 0.4, -12],
     islandCollisionCenter: [22, 0, 10],
     boatCollisionRadius: 2.2,

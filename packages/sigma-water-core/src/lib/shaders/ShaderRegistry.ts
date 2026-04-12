@@ -14,9 +14,14 @@
  * ```
  */
 
-import { Scene, Mesh } from '@babylonjs/core';
+import { Scene, Mesh, ShaderLanguage } from '@babylonjs/core';
 import { ShaderContext, ShaderContextConfig } from './ShaderContext';
 import { ShaderManager } from './ShaderManager';
+
+export interface ShaderRegistryOptions {
+  shaderLanguage: ShaderLanguage;
+  preferFallbackShader?: boolean;
+}
 
 export interface ShaderRegistryEntry {
   /** Unique shader ID */
@@ -40,6 +45,10 @@ export interface ShaderRegistryEntry {
   shader: {
     vertex: string;
     fragment: string;
+    fallback?: {
+      vertex: string;
+      fragment: string;
+    };
   };
   
   /** Babylon.js metadata */
@@ -67,10 +76,12 @@ export class ShaderRegistry {
   private entries: Map<string, ShaderRegistryEntry> = new Map();
   private manager: ShaderManager;
   private scene: Scene;
+  private options: ShaderRegistryOptions;
 
-  constructor(scene: Scene) {
+  constructor(scene: Scene, options: ShaderRegistryOptions) {
     this.scene = scene;
     this.manager = new ShaderManager();
+    this.options = options;
   }
 
   private resolveShaderSource(source: unknown, shaderId: string, stage: 'vertex' | 'fragment'): string {
@@ -92,7 +103,15 @@ export class ShaderRegistry {
       current = (current as { default?: unknown }).default;
     }
 
-    throw new Error(`Invalid ${stage} shader source for ${shaderId}: expected WGSL string`);
+    throw new Error(`Invalid ${stage} shader source for ${shaderId}: expected shader string`);
+  }
+
+  private resolveEntryShader(entry: ShaderRegistryEntry): { vertex: string; fragment: string } {
+    const fallbackShader = this.options.preferFallbackShader ? entry.shader.fallback : undefined;
+    return {
+      vertex: this.resolveShaderSource(fallbackShader?.vertex ?? entry.shader.vertex, entry.id, 'vertex'),
+      fragment: this.resolveShaderSource(fallbackShader?.fragment ?? entry.shader.fragment, entry.id, 'fragment'),
+    };
   }
 
   /**
@@ -103,10 +122,9 @@ export class ShaderRegistry {
       console.log(`📝 Registering shader: ${entry.id}`);
       
       // Validate entry
-      const vertexSource = this.resolveShaderSource(entry.shader.vertex, entry.id, 'vertex');
-      const fragmentSource = this.resolveShaderSource(entry.shader.fragment, entry.id, 'fragment');
+      const selectedShader = this.resolveEntryShader(entry);
 
-      if (!entry.id || !vertexSource || !fragmentSource) {
+      if (!entry.id || !selectedShader.vertex || !selectedShader.fragment) {
         throw new Error('Invalid shader entry: missing required fields');
       }
 
@@ -118,8 +136,9 @@ export class ShaderRegistry {
         id: entry.id,
         displayName: entry.displayName,
         description: entry.description,
-        vertexCode: vertexSource,
-        fragmentCode: fragmentSource,
+        vertexCode: selectedShader.vertex,
+        fragmentCode: selectedShader.fragment,
+        shaderLanguage: this.options.preferFallbackShader ? ShaderLanguage.GLSL : this.options.shaderLanguage,
         uniforms: entry.babylon.uniforms,
         attributes: entry.babylon.attributes,
         samplers: entry.babylon.samplers,

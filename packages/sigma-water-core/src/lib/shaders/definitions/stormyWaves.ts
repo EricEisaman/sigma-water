@@ -1,6 +1,7 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { waterVertexShader, profiledOceanFragmentShader } from '../wgsl';
+import { waterVertexShaderGLSL, profiledOceanFragmentShaderGLSL } from '../glsl';
 
 export const stormyWavesDefinition: ShaderRegistryEntry = {
   id: 'stormyWaves',
@@ -17,6 +18,10 @@ export const stormyWavesDefinition: ShaderRegistryEntry = {
   shader: {
     vertex: waterVertexShader,
     fragment: profiledOceanFragmentShader,
+    fallback: {
+      vertex: waterVertexShaderGLSL,
+      fragment: profiledOceanFragmentShaderGLSL,
+    },
   },
   
   babylon: {
@@ -32,6 +37,9 @@ export const stormyWavesDefinition: ShaderRegistryEntry = {
       'foamIntensity',
       'foamWidth',
       'foamNoiseFactor',
+      'foamCellScale',
+      'foamShredSlope',
+      'foamFizzWeight',
       'intersectionFoamEnabled',
       'intersectionFoamIntensity',
       'intersectionFoamWidth',
@@ -51,6 +59,9 @@ export const stormyWavesDefinition: ShaderRegistryEntry = {
       'boatIntersectionFactor',
       'islandIntersectionFactor',
       'specularIntensity',
+      'skyReflectionMix',
+      'normalDetailStrength',
+      'normalDistanceFalloff',
       'depthFadeDistance',
       'depthFadeExponent',
       'underwaterEnabled',
@@ -92,6 +103,9 @@ export const stormyWavesDefinition: ShaderRegistryEntry = {
     foamIntensity: 0.82,
     foamWidth: 1.18,
     foamNoiseFactor: 0.58,
+    foamCellScale: 0.115,
+    foamShredSlope: 0.56,
+    foamFizzWeight: 0.28,
     intersectionFoamEnabled: 1,
     intersectionFoamIntensity: 1,
     intersectionFoamWidth: 1,
@@ -111,6 +125,9 @@ export const stormyWavesDefinition: ShaderRegistryEntry = {
     boatIntersectionFactor: 0,
     islandIntersectionFactor: 0,
     specularIntensity: 1.1,
+    skyReflectionMix: 0.72,
+    normalDetailStrength: 0.55,
+    normalDistanceFalloff: 0.03,
     depthFadeDistance: 1.35,
     depthFadeExponent: 2.0,
     underwaterEnabled: 1,

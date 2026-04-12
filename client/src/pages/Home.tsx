@@ -8,6 +8,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [rendererInfo, setRendererInfo] = useState<{ renderer: 'webgpu' | 'webgl' | 'unknown'; shaderLanguage: 'wgsl' | 'glsl' | 'unknown' }>({
+    renderer: 'unknown',
+    shaderLanguage: 'unknown',
+  });
   const [boatModel, setBoatModel] = useState<BoatModelId>('divingBoat');
   const [islandModel, setIslandModel] = useState<IslandModelId>('boathouseIsland');
   const [collisionMode, setCollisionMode] = useState(0);
@@ -48,6 +52,7 @@ export default function Home() {
 
         oceanInstance = ocean;
         oceanRef.current = ocean;
+        setRendererInfo(ocean.getRendererInfo());
 
         setInitialized(true);
         setLoading(false);
@@ -184,7 +189,7 @@ export default function Home() {
           <p className="text-sm mb-3">{error}</p>
           <p className="text-xs text-red-200">
             💡 <strong>Troubleshooting:</strong>
-            <br />• Ensure WebGPU is supported (Chrome 113+, Edge 113+)
+            <br />• WebGPU is preferred; WebGL fallback is used automatically when needed
             <br />• Check browser console for detailed errors
             <br />• Try refreshing the page
           </p>
@@ -202,7 +207,7 @@ export default function Home() {
               </div>
             </div>
             <p className="text-xl font-bold text-gray-800 mb-2">🌊 Ocean Renderer</p>
-            <p className="text-sm text-gray-600 mb-4">Initializing WebGPU Engine...</p>
+            <p className="text-sm text-gray-600 mb-4">Initializing renderer (WebGPU preferred, WebGL fallback enabled)...</p>
             <div className="w-48 h-1 bg-gray-200 rounded-full overflow-hidden">
               <div className="h-full bg-gradient-to-r from-blue-400 to-cyan-400 animate-pulse"></div>
             </div>
@@ -223,8 +228,20 @@ export default function Home() {
       {/* Performance stats (optional) */}
       {initialized && !error && (
         <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md text-white p-3 rounded-lg z-40 font-mono text-xs border border-white/10">
-          <p className="text-green-400">✓ WebGPU Active</p>
-          <p className="text-cyan-400">✓ WGSL Shaders</p>
+          <p className="text-green-400">
+            {rendererInfo.renderer === 'webgpu'
+              ? '✓ WebGPU Active'
+              : rendererInfo.renderer === 'webgl'
+                ? '✓ WebGL Fallback Active'
+                : '• Renderer Initializing'}
+          </p>
+          <p className="text-cyan-400">
+            {rendererInfo.shaderLanguage === 'wgsl'
+              ? '✓ WGSL Shaders'
+              : rendererInfo.shaderLanguage === 'glsl'
+                ? '✓ GLSL Fallback Shaders'
+                : '• Shader Pipeline Initializing'}
+          </p>
           <p className="text-yellow-400">✓ 512×512 Grid</p>
         </div>
       )}

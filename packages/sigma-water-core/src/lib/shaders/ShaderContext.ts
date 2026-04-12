@@ -25,6 +25,9 @@ export interface ShaderContextConfig {
   
   /** Fragment shader WGSL code */
   fragmentCode: string;
+
+  /** Shader language used by the source */
+  shaderLanguage: ShaderLanguage;
   
   /** Babylon.js uniform names */
   uniforms: string[];
@@ -102,7 +105,7 @@ export class ShaderContext {
       current = (current as { default?: unknown }).default;
     }
 
-    throw new Error(`Invalid ${stage} shader source for ${shaderId}: expected WGSL string`);
+    throw new Error(`Invalid ${stage} shader source for ${shaderId}: expected shader string`);
   }
 
   private createMaterial(): ShaderMaterial {
@@ -118,11 +121,15 @@ export class ShaderContext {
       },
       {
         attributes: this.config.attributes,
-        uniforms: this.config.uniforms,
+        uniforms: this.config.shaderLanguage === ShaderLanguage.GLSL
+          ? Array.from(new Set([...this.config.uniforms, 'worldViewProjection', 'world']))
+          : this.config.uniforms,
         samplers: this.config.samplers || [],
-        uniformBuffers: this.config.uniformBuffers || ['Scene', 'Mesh'],
+        uniformBuffers: this.config.shaderLanguage === ShaderLanguage.WGSL
+          ? (this.config.uniformBuffers || ['Scene', 'Mesh'])
+          : [],
         needAlphaBlending: false,
-        shaderLanguage: ShaderLanguage.WGSL,
+        shaderLanguage: this.config.shaderLanguage,
       }
     );
 

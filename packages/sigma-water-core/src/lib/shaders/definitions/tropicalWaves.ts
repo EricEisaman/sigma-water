@@ -1,6 +1,7 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { waterVertexShader, profiledOceanFragmentShader } from '../wgsl';
+import { waterVertexShaderGLSL, profiledOceanFragmentShaderGLSL } from '../glsl';
 
 export const tropicalWavesDefinition: ShaderRegistryEntry = {
   id: 'tropicalWaves',
@@ -17,6 +18,10 @@ export const tropicalWavesDefinition: ShaderRegistryEntry = {
   shader: {
     vertex: waterVertexShader,
     fragment: profiledOceanFragmentShader,
+    fallback: {
+      vertex: waterVertexShaderGLSL,
+      fragment: profiledOceanFragmentShaderGLSL,
+    },
   },
   
   babylon: {
@@ -32,6 +37,9 @@ export const tropicalWavesDefinition: ShaderRegistryEntry = {
       'foamIntensity',
       'foamWidth',
       'foamNoiseFactor',
+      'foamCellScale',
+      'foamShredSlope',
+      'foamFizzWeight',
       'intersectionFoamEnabled',
       'intersectionFoamIntensity',
       'intersectionFoamWidth',
@@ -51,6 +59,9 @@ export const tropicalWavesDefinition: ShaderRegistryEntry = {
       'boatIntersectionFactor',
       'islandIntersectionFactor',
       'specularIntensity',
+      'skyReflectionMix',
+      'normalDetailStrength',
+      'normalDistanceFalloff',
       'depthFadeDistance',
       'depthFadeExponent',
       'underwaterEnabled',
@@ -92,6 +103,9 @@ export const tropicalWavesDefinition: ShaderRegistryEntry = {
     foamIntensity: 0.52,
     foamWidth: 0.9,
     foamNoiseFactor: 0.5,
+    foamCellScale: 0.115,
+    foamShredSlope: 0.56,
+    foamFizzWeight: 0.28,
     intersectionFoamEnabled: 1,
     intersectionFoamIntensity: 1,
     intersectionFoamWidth: 1,
@@ -111,6 +125,9 @@ export const tropicalWavesDefinition: ShaderRegistryEntry = {
     boatIntersectionFactor: 0,
     islandIntersectionFactor: 0,
     specularIntensity: 0.95,
+    skyReflectionMix: 0.72,
+    normalDetailStrength: 0.55,
+    normalDistanceFalloff: 0.03,
     depthFadeDistance: 1.0,
     depthFadeExponent: 1.35,
     underwaterEnabled: 1,

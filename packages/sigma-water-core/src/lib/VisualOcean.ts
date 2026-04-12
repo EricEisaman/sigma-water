@@ -1,9 +1,10 @@
 /**
- * Photorealistic Ocean Renderer - Babylon.js 9 + WebGPU + WGSL
+ * Photorealistic Ocean Renderer - Babylon.js 9 + WebGPU/WebGL + WGSL/GLSL
  * Pure modular shader system - NO inline shader code
  */
 
 import {
+  Engine,
   WebGPUEngine,
   Scene,
   FreeCamera,
@@ -26,6 +27,7 @@ import {
   Constants,
   RawTexture,
   Texture,
+  ShaderLanguage,
 } from '@babylonjs/core';
 import '@babylonjs/loaders';
 import { parseWaterTypeId, type WaterTypeId } from '../water/WaterTypeRegistry';
@@ -67,13 +69,15 @@ const DEFAULT_ISLAND_Z = 10;
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
   private config: Required<VisualOceanConfig>;
-  private engine: WebGPUEngine | null = null;
+  private engine: Engine | WebGPUEngine | null = null;
   private scene: Scene | null = null;
   private camera: FreeCamera | null = null;
   private oceanMesh: Mesh | null = null;
   private skyboxMesh: Mesh | null = null;
   private shaderRegistry: ShaderRegistry | null = null;
   private currentShaderName: WaterTypeId = 'gerstnerWaves';
+  private activeShaderLanguage: ShaderLanguage | null = null;
+  private activeRenderer: 'webgpu' | 'webgl' | null = null;
   private depthRenderer: DepthRenderer | null = null;
   private parameterState: Record<string, number> = {};
   private lastFrameTimeMs = 0;
@@ -213,9 +217,7 @@ export class VisualOcean {
 
   async initialize(): Promise<void> {
     console.log('🌊 Initializing Sigma Water Ocean Renderer...');
-    
-    this.engine = new WebGPUEngine(this.canvas);
-    await this.engine.initAsync();
+    this.engine = await this.createBestAvailableEngine();
     
     this.scene = new Scene(this.engine);
     this.scene.clearColor = new Color4(0.1, 0.3, 0.5, 1.0);
@@ -250,6 +252,45 @@ export class VisualOcean {
     this.canvas.addEventListener('pointermove', this.handleCanvasPointerMove);
     window.addEventListener('pointerup', this.handleCanvasPointerUp);
     window.addEventListener('pointercancel', this.handleCanvasPointerUp);
+  }
+
+  private async createBestAvailableEngine(): Promise<Engine | WebGPUEngine> {
+    // Dev flag: ?webgl=true forces WebGL even if WebGPU is available
+    const forceWebGL = new URLSearchParams(globalThis.location.search).get('webgl') === 'true';
+    if (forceWebGL) {
+      console.log('🔧 Dev flag detected: ?webgl=true - forcing WebGL engine');
+    }
+
+    const nav = globalThis.navigator as Navigator & { gpu?: unknown };
+    const hasWebGPU = !forceWebGL && !!nav?.gpu;
+
+    if (hasWebGPU) {
+      try {
+        const webgpuEngine = new WebGPUEngine(this.canvas);
+        await webgpuEngine.initAsync();
+        this.activeRenderer = 'webgpu';
+        this.activeShaderLanguage = ShaderLanguage.WGSL;
+        console.log('✅ WebGPU engine initialized');
+        return webgpuEngine;
+      } catch (error) {
+        console.warn('⚠️ WebGPU init failed, falling back to WebGL engine', error);
+      }
+    } else {
+      if (!forceWebGL) {
+        console.log('ℹ️ WebGPU unavailable, using WebGL engine fallback');
+      }
+    }
+
+    const webglEngine = new Engine(this.canvas, true, {
+      preserveDrawingBuffer: false,
+      stencil: true,
+      antialias: true,
+      disableWebGL2Support: false,
+    });
+    this.activeRenderer = 'webgl';
+    this.activeShaderLanguage = ShaderLanguage.GLSL;
+    console.log('✅ WebGL fallback engine initialized');
+    return webglEngine;
   }
 
   private async setupCamera(): Promise<void> {
@@ -373,7 +414,10 @@ export class VisualOcean {
     );
 
     console.log('📦 Initializing ShaderRegistry...');
-    this.shaderRegistry = new ShaderRegistry(this.scene);
+    this.shaderRegistry = new ShaderRegistry(this.scene, {
+      shaderLanguage: this.activeShaderLanguage ?? ShaderLanguage.WGSL,
+      preferFallbackShader: this.activeRenderer === 'webgl',
+    });
     this.shaderRegistry.registerBatch(SHADER_DEFINITIONS);
     console.log('✅ ShaderRegistry initialized with all shader definitions');
 
@@ -1551,6 +1595,14 @@ export class VisualOcean {
     }
     this.shaderRegistry.setUniform('boatIntersectionFactor', this.boatIntersectionFactor);
     this.shaderRegistry.setUniform('islandIntersectionFactor', this.islandIntersectionFactor);
+    this.shaderRegistry.setUniform(
+      'islandShorelineBandWidth',
+      Math.min(Math.max(this.parameterState.islandShorelineBandWidth ?? 0.28, 0.08), 0.8)
+    );
+    this.shaderRegistry.setUniform(
+      'islandShorelineFoamGain',
+      Math.max(this.parameterState.islandShorelineFoamGain ?? 1, 0)
+    );
   }
 
   private updateUnderwaterState(deltaTime: number): void {
@@ -1874,6 +1926,13 @@ export class VisualOcean {
 
   public getCurrentEnvironmentMapPath(): string {
     return this.config.environmentMapPath;
+  }
+
+  public getRendererInfo(): { renderer: 'webgpu' | 'webgl' | 'unknown'; shaderLanguage: 'wgsl' | 'glsl' | 'unknown' } {
+    return {
+      renderer: this.activeRenderer ?? 'unknown',
+      shaderLanguage: this.activeRenderer === 'webgpu' ? 'wgsl' : this.activeRenderer === 'webgl' ? 'glsl' : 'unknown',
+    };
   }
 
   public getDebugParameterValue(key: string): number | undefined {

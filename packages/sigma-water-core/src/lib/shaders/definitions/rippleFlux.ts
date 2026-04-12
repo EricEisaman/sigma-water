@@ -1,6 +1,7 @@
 import { ShaderContext } from '../ShaderContext';
 import { ShaderRegistryEntry } from '../ShaderRegistry';
 import { rippleFluxVertexShader, rippleFluxFragmentShader } from '../wgsl';
+import { rippleFluxVertexShaderGLSL, rippleFluxFragmentShaderGLSL } from '../glsl';
 
 export const rippleFluxDefinition: ShaderRegistryEntry = {
   id: 'rippleFlux',
@@ -17,6 +18,10 @@ export const rippleFluxDefinition: ShaderRegistryEntry = {
   shader: {
     vertex: rippleFluxVertexShader,
     fragment: rippleFluxFragmentShader,
+    fallback: {
+      vertex: rippleFluxVertexShaderGLSL,
+      fragment: rippleFluxFragmentShaderGLSL,
+    },
   },
 
   babylon: {

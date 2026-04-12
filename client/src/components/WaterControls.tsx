@@ -1892,7 +1892,6 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                 </div>
                 )}
 
-                {supportsShaderControl('skyReflectionMix') && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">Sky Preset</label>
                   <select
@@ -1906,6 +1905,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {supportsShaderControl('skyReflectionMix') && (
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
                     Sky Reflection Mix: <span className="text-purple-400 font-bold">{skyReflectionMix.toFixed(2)}</span>
                   </label>

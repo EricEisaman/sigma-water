@@ -1,5 +1,6 @@
 uniform time: f32;
 uniform cameraPosition: vec3<f32>;
+uniform waveAmplitude: f32;
 
 // Runtime compatibility uniforms (intentionally unused here).
 uniform boatCollisionCenter: vec3<f32>;
@@ -55,7 +56,8 @@ fn sea_octave(uv_in: vec2<f32>, choppy: f32) -> f32 {
 
 fn map_detailed(p: vec3<f32>) -> f32 {
   var freq = SEA_FREQ;
-  var amp = SEA_HEIGHT;
+  let amplitudeScale = max(uniforms.waveAmplitude, 0.05);
+  var amp = SEA_HEIGHT * amplitudeScale;
   var choppy = SEA_CHOPPY;
   var uv = p.xz;
   uv.x = uv.x * 0.75;

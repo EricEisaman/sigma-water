@@ -41,7 +41,8 @@ fn sea_octave(uv_in: vec2<f32>, choppy: f32) -> f32 {
 
 fn getHeight(p: vec3<f32>) -> f32 {
   var freq = SEA_FREQ;
-  var amp = SEA_HEIGHT;
+  let amplitudeScale = max(uniforms.waveAmplitude, 0.05);
+  var amp = SEA_HEIGHT * amplitudeScale;
   var choppy = SEA_CHOPPY;
   var uv = p.xz;
   uv.x = uv.x * 0.75;

@@ -33,18 +33,30 @@ fn sampleRippleHeight(uvIn: vec2<f32>) -> f32 {
   return sampleRippleRaw(uvIn) * uniforms.waveAmplitude;
 }
 
+fn sampleRippleHeightSmooth(uvIn: vec2<f32>) -> f32 {
+  let dx = vec2<f32>(uniforms.rippleTexelSize.x, 0.0);
+  let dy = vec2<f32>(0.0, uniforms.rippleTexelSize.y);
+  let center = sampleRippleHeight(uvIn);
+  let cross = sampleRippleHeight(uvIn - dx)
+    + sampleRippleHeight(uvIn + dx)
+    + sampleRippleHeight(uvIn - dy)
+    + sampleRippleHeight(uvIn + dy);
+  // Weighted 5-tap smoothing helps hide simulation-cell imprinting on coarse geometry.
+  return center * 0.7 + cross * 0.075;
+}
+
 @vertex
 fn main(input: VertexInputs) -> FragmentInputs {
   let rippleUv = rippleUvForWorld(input.position.xz);
-  let height = sampleRippleHeight(rippleUv);
+  let height = sampleRippleHeightSmooth(rippleUv);
   let displaced = vec3<f32>(input.position.x, input.position.y + height, input.position.z);
 
   let dx = vec2<f32>(uniforms.rippleTexelSize.x, 0.0);
   let dy = vec2<f32>(0.0, uniforms.rippleTexelSize.y);
-  let left = sampleRippleHeight(rippleUv - dx);
-  let right = sampleRippleHeight(rippleUv + dx);
-  let down = sampleRippleHeight(rippleUv - dy);
-  let up = sampleRippleHeight(rippleUv + dy);
+  let left = sampleRippleHeightSmooth(rippleUv - dx);
+  let right = sampleRippleHeightSmooth(rippleUv + dx);
+  let down = sampleRippleHeightSmooth(rippleUv - dy);
+  let up = sampleRippleHeightSmooth(rippleUv + dy);
   let worldCellX = max(uniforms.rippleFieldBounds.z * uniforms.rippleTexelSize.x, 0.001);
   let worldCellY = max(uniforms.rippleFieldBounds.w * uniforms.rippleTexelSize.y, 0.001);
   let slope = vec2<f32>((right - left) / (worldCellX * 2.0), (up - down) / (worldCellY * 2.0));

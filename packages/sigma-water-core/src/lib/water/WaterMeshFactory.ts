@@ -76,7 +76,7 @@ const WATER_TYPE_MESH_PROFILES: Record<WaterTypeId, WaterMeshProfile> = {
     base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
   },
   rippleFlux: {
-    base: { meshType: 'groundDense', width: 300, height: 300, subdivisions: 320 },
+    base: { meshType: 'groundDense', width: 300, height: 300, subdivisions: 384 },
   },
 };
 

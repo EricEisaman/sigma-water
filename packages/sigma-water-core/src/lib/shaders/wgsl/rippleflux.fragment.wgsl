@@ -25,6 +25,47 @@ varying vNormal : vec3<f32>;
 varying vUv : vec2<f32>;
 varying vRippleUv : vec2<f32>;
 
+fn rippleUvForWorld(worldXZ: vec2<f32>) -> vec2<f32> {
+  let size = max(uniforms.rippleFieldBounds.zw, vec2<f32>(0.001, 0.001));
+  return (worldXZ - uniforms.rippleFieldBounds.xy) / size;
+}
+
+fn sampleRippleRaw(uvIn: vec2<f32>) -> f32 {
+  let inside = step(0.0, uvIn.x) * step(0.0, uvIn.y) * step(uvIn.x, 1.0) * step(uvIn.y, 1.0);
+  let clampedUv = clamp(uvIn, vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 1.0));
+  return textureSampleLevel(rippleHeightTexture, rippleHeightTextureSampler, clampedUv, 0.0).r * inside;
+}
+
+fn sampleRippleHeight(uvIn: vec2<f32>) -> f32 {
+  return sampleRippleRaw(uvIn) * uniforms.waveAmplitude;
+}
+
+fn rippleNormalFromTexture(uvIn: vec2<f32>) -> vec3<f32> {
+  let dx = vec2<f32>(uniforms.rippleTexelSize.x, 0.0);
+  let dy = vec2<f32>(0.0, uniforms.rippleTexelSize.y);
+  let left = sampleRippleHeight(uvIn - dx);
+  let right = sampleRippleHeight(uvIn + dx);
+  let down = sampleRippleHeight(uvIn - dy);
+  let up = sampleRippleHeight(uvIn + dy);
+
+  // Blend in a wider footprint to suppress checker/cell artifacts from the simulation grid.
+  let leftWide = sampleRippleHeight(uvIn - dx * 2.5);
+  let rightWide = sampleRippleHeight(uvIn + dx * 2.5);
+  let downWide = sampleRippleHeight(uvIn - dy * 2.5);
+  let upWide = sampleRippleHeight(uvIn + dy * 2.5);
+
+  let worldCellX = max(uniforms.rippleFieldBounds.z * uniforms.rippleTexelSize.x, 0.001);
+  let worldCellY = max(uniforms.rippleFieldBounds.w * uniforms.rippleTexelSize.y, 0.001);
+
+  let fineSlopeX = (right - left) / (worldCellX * 2.0);
+  let fineSlopeY = (up - down) / (worldCellY * 2.0);
+  let wideSlopeX = (rightWide - leftWide) / (worldCellX * 5.0);
+  let wideSlopeY = (upWide - downWide) / (worldCellY * 5.0);
+
+  let slope = vec2<f32>(mix(fineSlopeX, wideSlopeX, 0.45), mix(fineSlopeY, wideSlopeY, 0.45));
+  return normalize(vec3<f32>(-slope.x, 1.0, -slope.y));
+}
+
 fn getSkyColor(directionIn: vec3<f32>) -> vec3<f32> {
   var direction = directionIn;
   direction.y = (max(direction.y, 0.0) * 0.76 + 0.24) * 0.84;
@@ -42,15 +83,17 @@ fn rippleBand(uvIn: vec2<f32>) -> f32 {
 
 @fragment
 fn main(input: FragmentInputs) -> FragmentOutputs {
-  let normal = normalize(input.vNormal);
+  let rippleUv = rippleUvForWorld(input.vWorldPos.xz);
+  let sampledNormal = rippleNormalFromTexture(rippleUv);
+  let normal = normalize(mix(normalize(input.vNormal), sampledNormal, 0.78));
   let viewDir = normalize(scene.vEyePosition.xyz - input.vWorldPos);
   let lightDir = normalize(vec3<f32>(0.32, 0.9, 0.24));
   let ndl = max(dot(normal, lightDir), 0.0);
   let ndv = max(dot(normal, viewDir), 0.0);
   let fresnel = 0.04 + max(uniforms.skyReflectionMix, 0.0) * pow(1.0 - ndv, 4.6);
 
-  let rippleValue = rippleBand(input.vRippleUv);
-  let nearby = abs(rippleBand(input.vRippleUv + vec2<f32>(uniforms.rippleTexelSize.x * 2.0, uniforms.rippleTexelSize.y * 2.0)) - rippleValue);
+  let rippleValue = rippleBand(rippleUv);
+  let nearby = abs(rippleBand(rippleUv + vec2<f32>(uniforms.rippleTexelSize.x * 2.0, uniforms.rippleTexelSize.y * 2.0)) - rippleValue);
   let rippleEnergy = clamp(abs(rippleValue) * 5.0 + nearby * 8.0, 0.0, 1.0);
 
   let shallowColor = vec3<f32>(0.06, 0.26, 0.34);

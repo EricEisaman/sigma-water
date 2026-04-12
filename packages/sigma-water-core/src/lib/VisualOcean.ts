@@ -1864,6 +1864,30 @@ export class VisualOcean {
     return this.currentShaderName;
   }
 
+  public getCurrentBoatModel(): BoatModelId {
+    return this.boatModelId;
+  }
+
+  public getCurrentIslandModel(): IslandModelId {
+    return this.islandModelId;
+  }
+
+  public getCurrentEnvironmentMapPath(): string {
+    return this.config.environmentMapPath;
+  }
+
+  public getDebugParameterValue(key: string): number | undefined {
+    if (key === 'collisionMode') {
+      return this.collisionMode;
+    }
+
+    if (key === 'showProxySpheres') {
+      return this.showProxySpheres ? 1 : 0;
+    }
+
+    return this.parameterState[key];
+  }
+
   private updateRuntimeUniforms(): void {
     if (!this.shaderRegistry) return;
 

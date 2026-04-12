@@ -516,6 +516,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [pendingStartupConflict, setPendingStartupConflict] = useState<StartupSettingsConflict | null>(startupResolution.conflict);
   const [isStartupResolved, setIsStartupResolved] = useState(startupResolution.conflict === null);
   const skipNextLocalStorageWriteRef = useRef(false);
+  const hasAppliedInitialRuntimeValuesRef = useRef(false);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -650,8 +651,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('boatWakeRadius', val);
   }, [onParameterChange]);
 
-  const ISLAND_X = 22;
-  const ISLAND_Z = 10;
+  const TOP_DOWN_HEIGHT = 260;
 
   const pushValuesToRuntime = useCallback((values: ControlValues) => {
     onParameterChange('waterMeshScale', values.waterMeshScale);
@@ -721,7 +721,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onShaderChange?.(values.waterType);
 
     const position = orbitCameraPosition(
-      { x: ISLAND_X, z: ISLAND_Z },
+      { x: values.islandX, z: values.islandZ },
       values.cameraAngle,
       values.cameraDistance,
       values.cameraHeight
@@ -921,6 +921,11 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   useEffect(() => {
     // Sync runtime to startup source. If URL conflicts with saved settings,
     // we keep saved values until the user chooses in the conflict modal.
+    if (hasAppliedInitialRuntimeValuesRef.current) {
+      return;
+    }
+
+    hasAppliedInitialRuntimeValuesRef.current = true;
     pushValuesToRuntime(initialValues);
   }, [initialValues, pushValuesToRuntime]);
 
@@ -1348,27 +1353,27 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setCameraDistance(val);
     setIsTopDownView(false);
     previousCameraTransformRef.current = null;
-    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, cameraAngle, val, cameraHeight);
+    const position = orbitCameraPosition({ x: islandX, z: islandZ }, cameraAngle, val, cameraHeight);
     onCameraChange(position.x, position.y, position.z);
-  }, [onCameraChange, cameraAngle, cameraHeight]);
+  }, [onCameraChange, cameraAngle, cameraHeight, islandX, islandZ]);
 
   const handleCameraHeightChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraHeight(val);
     setIsTopDownView(false);
     previousCameraTransformRef.current = null;
-    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, cameraAngle, cameraDistance, val);
+    const position = orbitCameraPosition({ x: islandX, z: islandZ }, cameraAngle, cameraDistance, val);
     onCameraChange(position.x, position.y, position.z);
-  }, [onCameraChange, cameraAngle, cameraDistance]);
+  }, [onCameraChange, cameraAngle, cameraDistance, islandX, islandZ]);
 
   const handleCameraAngleChange = useCallback((value: number[]) => {
     const val = value[0];
     setCameraAngle(val);
     setIsTopDownView(false);
     previousCameraTransformRef.current = null;
-    const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, val, cameraDistance, cameraHeight);
+    const position = orbitCameraPosition({ x: islandX, z: islandZ }, val, cameraDistance, cameraHeight);
     onCameraChange(position.x, position.y, position.z);
-  }, [onCameraChange, cameraDistance, cameraHeight]);
+  }, [onCameraChange, cameraDistance, cameraHeight, islandX, islandZ]);
 
   const handleToggleTopDownView = useCallback(() => {
     if (isTopDownView) {
@@ -1377,7 +1382,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
         setCameraDistance(previous.distance);
         setCameraHeight(previous.height);
         setCameraAngle(previous.angle);
-        const position = orbitCameraPosition({ x: ISLAND_X, z: ISLAND_Z }, previous.angle, previous.distance, previous.height);
+        const position = orbitCameraPosition({ x: islandX, z: islandZ }, previous.angle, previous.distance, previous.height);
         onCameraChange(position.x, position.y, position.z);
       }
       previousCameraTransformRef.current = null;
@@ -1390,9 +1395,18 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       height: cameraHeight,
       angle: cameraAngle,
     };
+
+    const dx = -islandX;
+    const dz = 0.001 - islandZ;
+    const topDownDistance = Math.hypot(dx, dz);
+    const topDownAngle = ((Math.atan2(dz, dx) * 180) / Math.PI + 360) % 360;
+    setCameraDistance(topDownDistance);
+    setCameraHeight(TOP_DOWN_HEIGHT);
+    setCameraAngle(topDownAngle);
+
     onTopDownView();
     setIsTopDownView(true);
-  }, [isTopDownView, cameraDistance, cameraHeight, cameraAngle, onCameraChange, onTopDownView]);
+  }, [isTopDownView, cameraDistance, cameraHeight, cameraAngle, onCameraChange, onTopDownView, islandX, islandZ]);
 
   const handleReset = useCallback(() => {
     setIsTopDownView(false);

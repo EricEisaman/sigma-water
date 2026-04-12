@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { WaterControls } from "@/components/WaterControls";
 import { VisualOcean, type BoatModelId, type IslandModelId, WaterType, serializeWaterType, BOAT_MODEL_OPTIONS, ISLAND_MODEL_OPTIONS } from "@sigma-water/core";
 
@@ -11,6 +11,16 @@ export default function Home() {
   const [boatModel, setBoatModel] = useState<BoatModelId>('divingBoat');
   const [islandModel, setIslandModel] = useState<IslandModelId>('boathouseIsland');
   const [collisionMode, setCollisionMode] = useState(0);
+  const traceSeqRef = useRef(0);
+
+  const traceControlSync = useCallback((event: string, payload: Record<string, unknown>) => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    traceSeqRef.current += 1;
+    console.debug(`[control-sync:${traceSeqRef.current}] ${event}`, payload);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -96,49 +106,67 @@ export default function Home() {
     };
   }, []);
 
-  const handleParameterChange = (key: string, value: number) => {
+  const handleParameterChange = useCallback((key: string, value: number) => {
     if (oceanRef.current) {
+      const before = oceanRef.current.getDebugParameterValue(key);
+      traceControlSync('parameter.dispatch', { key, requested: value, before });
       oceanRef.current.updateParameter(key, value);
+      const after = oceanRef.current.getDebugParameterValue(key);
+      traceControlSync('parameter.applied', { key, requested: value, after, mismatch: after !== undefined && after !== value });
     }
-  };
+  }, [traceControlSync]);
 
-  const handleCameraChange = (x: number, y: number, z: number) => {
+  const handleCameraChange = useCallback((x: number, y: number, z: number) => {
     if (oceanRef.current) {
       oceanRef.current.updateCamera(x, y, z);
     }
-  };
+  }, []);
 
-  const handleTopDownView = () => {
+  const handleTopDownView = useCallback(() => {
     if (oceanRef.current) {
       oceanRef.current.setTopDownView(260);
     }
-  };
+  }, []);
 
-  const handleShaderChange = (waterType: WaterType) => {
+  const handleShaderChange = useCallback((waterType: WaterType) => {
     if (oceanRef.current) {
-      oceanRef.current.switchShader(serializeWaterType(waterType));
+      const nextShader = serializeWaterType(waterType);
+      traceControlSync('shader.dispatch', { requested: nextShader, before: oceanRef.current.getCurrentShader() });
+      void oceanRef.current.switchShader(nextShader).finally(() => {
+        traceControlSync('shader.applied', { requested: nextShader, after: oceanRef.current?.getCurrentShader() });
+      });
     }
-  };
+  }, [traceControlSync]);
 
-  const handleSkyPresetChange = (skyPresetFile: string) => {
+  const handleSkyPresetChange = useCallback((skyPresetFile: string) => {
     if (oceanRef.current) {
-      void oceanRef.current.switchSky(`/assets/images/${skyPresetFile}`);
+      const requestedPath = `/assets/images/${skyPresetFile}`;
+      traceControlSync('sky.dispatch', { requested: requestedPath, before: oceanRef.current.getCurrentEnvironmentMapPath() });
+      void oceanRef.current.switchSky(requestedPath).finally(() => {
+        traceControlSync('sky.applied', { requested: requestedPath, after: oceanRef.current?.getCurrentEnvironmentMapPath() });
+      });
     }
-  };
+  }, [traceControlSync]);
 
-  const handleBoatModelChange = (modelId: BoatModelId) => {
+  const handleBoatModelChange = useCallback((modelId: BoatModelId) => {
     if (oceanRef.current) {
-      void oceanRef.current.setBoatModel(modelId);
+      traceControlSync('boatModel.dispatch', { requested: modelId, before: oceanRef.current.getCurrentBoatModel() });
+      void oceanRef.current.setBoatModel(modelId).finally(() => {
+        traceControlSync('boatModel.applied', { requested: modelId, after: oceanRef.current?.getCurrentBoatModel() });
+      });
     }
     setBoatModel(modelId);
-  };
+  }, [traceControlSync]);
 
-  const handleIslandModelChange = (modelId: IslandModelId) => {
+  const handleIslandModelChange = useCallback((modelId: IslandModelId) => {
     if (oceanRef.current) {
-      void oceanRef.current.setIslandModel(modelId);
+      traceControlSync('islandModel.dispatch', { requested: modelId, before: oceanRef.current.getCurrentIslandModel() });
+      void oceanRef.current.setIslandModel(modelId).finally(() => {
+        traceControlSync('islandModel.applied', { requested: modelId, after: oceanRef.current?.getCurrentIslandModel() });
+      });
     }
     setIslandModel(modelId);
-  };
+  }, [traceControlSync]);
 
   return (
     <div className="w-full h-screen bg-gradient-to-b from-sky-200 via-sky-300 to-blue-400 overflow-hidden flex flex-col relative">

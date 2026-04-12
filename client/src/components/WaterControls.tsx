@@ -40,8 +40,15 @@ interface WaterControlsProps {
 }
 
 type ControlValues = {
+  waterMeshScale: number;
   waveAmplitude: number;
   waveFrequency: number;
+  rippleRadius: number;
+  rippleStrength: number;
+  rippleDamping: number;
+  ripplePropagation: number;
+  boatWakeStrength: number;
+  boatWakeRadius: number;
   windDirection: number;
   windSpeed: number;
   crestFoamEnabled: number;
@@ -100,8 +107,15 @@ type ControlValues = {
 const STORAGE_KEY = 'sigma-water-controls-v1';
 
 const DEFAULT_VALUES: ControlValues = {
+  waterMeshScale: 1.0,
   waveAmplitude: 1.8,
   waveFrequency: 1.2,
+  rippleRadius: 3.2,
+  rippleStrength: 0.35,
+  rippleDamping: 0.965,
+  ripplePropagation: 0.9,
+  boatWakeStrength: 0.24,
+  boatWakeRadius: 2.4,
   windDirection: 45,
   windSpeed: 0.6,
   crestFoamEnabled: 1,
@@ -158,8 +172,15 @@ const DEFAULT_VALUES: ControlValues = {
 };
 
 const PARAM_KEYS: Record<keyof ControlValues, string> = {
+  waterMeshScale: 'wms',
   waveAmplitude: 'wa',
   waveFrequency: 'wf',
+  rippleRadius: 'rr',
+  rippleStrength: 'rs',
+  rippleDamping: 'rd',
+  ripplePropagation: 'rp',
+  boatWakeStrength: 'bws',
+  boatWakeRadius: 'bwr',
   windDirection: 'wd',
   windSpeed: 'ws',
   crestFoamEnabled: 'cfe',
@@ -363,9 +384,17 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const startupResolution = useState<StartupSettingsResolution>(() => getStartupSettingsResolution())[0];
   const initialValues = startupResolution.initialValues;
 
+  const [waterMeshScale, setWaterMeshScale] = useState(initialValues.waterMeshScale);
+
   // Wave parameters
   const [waveAmplitude, setWaveAmplitude] = useState(initialValues.waveAmplitude);
   const [waveFrequency, setWaveFrequency] = useState(initialValues.waveFrequency);
+  const [rippleRadius, setRippleRadius] = useState(initialValues.rippleRadius);
+  const [rippleStrength, setRippleStrength] = useState(initialValues.rippleStrength);
+  const [rippleDamping, setRippleDamping] = useState(initialValues.rippleDamping);
+  const [ripplePropagation, setRipplePropagation] = useState(initialValues.ripplePropagation);
+  const [boatWakeStrength, setBoatWakeStrength] = useState(initialValues.boatWakeStrength);
+  const [boatWakeRadius, setBoatWakeRadius] = useState(initialValues.boatWakeRadius);
   const [windDirection, setWindDirection] = useState(initialValues.windDirection);
   const [windSpeed, setWindSpeed] = useState(initialValues.windSpeed);
   const [crestFoamEnabled, setCrestFoamEnabled] = useState(initialValues.crestFoamEnabled);
@@ -429,7 +458,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [waterType, setWaterType] = useState(initialValues.waterType);
 
   // UI state
-  const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | 'waterType' | null>('waves');
+  const [expandedSection, setExpandedSection] = useState<'waves' | 'effects' | 'objects' | 'camera' | 'waterType' | 'waterMesh' | null>('waves');
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [pendingStartupConflict, setPendingStartupConflict] = useState<StartupSettingsConflict | null>(startupResolution.conflict);
   const [isStartupResolved, setIsStartupResolved] = useState(startupResolution.conflict === null);
@@ -445,8 +474,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   }, []);
 
   const setControlStateFromValues = useCallback((values: ControlValues) => {
+    setWaterMeshScale(values.waterMeshScale);
     setWaveAmplitude(values.waveAmplitude);
     setWaveFrequency(values.waveFrequency);
+    setRippleRadius(values.rippleRadius);
+    setRippleStrength(values.rippleStrength);
+    setRippleDamping(values.rippleDamping);
+    setRipplePropagation(values.ripplePropagation);
+    setBoatWakeStrength(values.boatWakeStrength);
+    setBoatWakeRadius(values.boatWakeRadius);
     setWindDirection(values.windDirection);
     setWindSpeed(values.windSpeed);
     setCrestFoamEnabled(values.crestFoamEnabled);
@@ -508,18 +544,67 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('waveAmplitude', val);
   }, [onParameterChange]);
 
+  const handleWaterMeshScaleChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setWaterMeshScale(val);
+    onParameterChange('waterMeshScale', val);
+  }, [onParameterChange]);
+
   const handleWaveFrequencyChange = useCallback((value: number[]) => {
     const val = value[0];
     setWaveFrequency(val);
     onParameterChange('waveFrequency', val);
   }, [onParameterChange]);
 
+  const handleRippleRadiusChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setRippleRadius(val);
+    onParameterChange('rippleRadius', val);
+  }, [onParameterChange]);
+
+  const handleRippleStrengthChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setRippleStrength(val);
+    onParameterChange('rippleStrength', val);
+  }, [onParameterChange]);
+
+  const handleRippleDampingChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setRippleDamping(val);
+    onParameterChange('rippleDamping', val);
+  }, [onParameterChange]);
+
+  const handleRipplePropagationChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setRipplePropagation(val);
+    onParameterChange('ripplePropagation', val);
+  }, [onParameterChange]);
+
+  const handleBoatWakeStrengthChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setBoatWakeStrength(val);
+    onParameterChange('boatWakeStrength', val);
+  }, [onParameterChange]);
+
+  const handleBoatWakeRadiusChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setBoatWakeRadius(val);
+    onParameterChange('boatWakeRadius', val);
+  }, [onParameterChange]);
+
   const ISLAND_X = 22;
   const ISLAND_Z = 10;
 
   const pushValuesToRuntime = useCallback((values: ControlValues) => {
+    onParameterChange('waterMeshScale', values.waterMeshScale);
     onParameterChange('waveAmplitude', values.waveAmplitude);
     onParameterChange('waveFrequency', values.waveFrequency);
+    onParameterChange('rippleRadius', values.rippleRadius);
+    onParameterChange('rippleStrength', values.rippleStrength);
+    onParameterChange('rippleDamping', values.rippleDamping);
+    onParameterChange('ripplePropagation', values.ripplePropagation);
+    onParameterChange('boatWakeStrength', values.boatWakeStrength);
+    onParameterChange('boatWakeRadius', values.boatWakeRadius);
     onParameterChange('windDirection', values.windDirection);
     onParameterChange('windSpeed', values.windSpeed);
     onParameterChange('crestFoamEnabled', values.crestFoamEnabled);
@@ -601,8 +686,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   }, [pendingStartupConflict, setControlStateFromValues, pushValuesToRuntime]);
 
   const buildCurrentControlValues = useCallback((): ControlValues => ({
+    waterMeshScale,
     waveAmplitude,
     waveFrequency,
+    rippleRadius,
+    rippleStrength,
+    rippleDamping,
+    ripplePropagation,
+    boatWakeStrength,
+    boatWakeRadius,
     windDirection,
     windSpeed,
     crestFoamEnabled,
@@ -657,8 +749,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraAngle,
     waterType,
   }), [
+    waterMeshScale,
     waveAmplitude,
     waveFrequency,
+    rippleRadius,
+    rippleStrength,
+    rippleDamping,
+    ripplePropagation,
+    boatWakeStrength,
+    boatWakeRadius,
     windDirection,
     windSpeed,
     crestFoamEnabled,
@@ -783,8 +882,15 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(values));
     }
   }, [
+    waterMeshScale,
     waveAmplitude,
     waveFrequency,
+    rippleRadius,
+    rippleStrength,
+    rippleDamping,
+    ripplePropagation,
+    boatWakeStrength,
+    boatWakeRadius,
     windDirection,
     windSpeed,
     crestFoamEnabled,
@@ -1172,7 +1278,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     }
   }, [onShaderChange]);
 
-  const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera' | 'waterType') => {
+  const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera' | 'waterType' | 'waterMesh') => {
     setExpandedSection(expandedSection === section ? null : section);
   };
 
@@ -1316,6 +1422,39 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
             )}
           </div>
 
+          {/* Water Mesh Section */}
+          <div className="space-y-2">
+            <button
+              onClick={() => toggleSection('waterMesh')}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-slate-800/50 hover:bg-slate-700/50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <Boxes className="h-4 w-4 text-teal-400" />
+                <span className="text-sm font-semibold text-white">Water Mesh</span>
+              </div>
+              <span className="text-xs text-slate-400">{expandedSection === 'waterMesh' ? '▼' : '▶'}</span>
+            </button>
+
+            {expandedSection === 'waterMesh' && (
+              <div className="space-y-3 pl-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Mesh Scale: <span className="text-teal-400 font-bold">{waterMeshScale.toFixed(2)}x</span>
+                  </label>
+                  <Slider
+                    value={[waterMeshScale]}
+                    onValueChange={(v) => handleWaterMeshScaleChange(v)}
+                    min={0.1}
+                    max={2.0}
+                    step={0.01}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Scales overall water mesh dimensions while preserving each water type mesh profile.</p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Wave Parameters Section */}
           <div className="space-y-2">
             <button
@@ -1360,6 +1499,108 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     step={0.1}
                     className="w-full"
                   />
+                </div>
+                )}
+
+                {supportsShaderControl('rippleRadius') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Disturbance Radius: <span className="text-blue-400 font-bold">{rippleRadius.toFixed(2)}m</span>
+                  </label>
+                  <Slider
+                    value={[rippleRadius]}
+                    onValueChange={(v) => handleRippleRadiusChange(v)}
+                    min={0.5}
+                    max={8.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Sets the footprint of user-driven ripple impulses on the RippleFlux surface.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('rippleStrength') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Disturbance Strength: <span className="text-blue-400 font-bold">{rippleStrength.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[rippleStrength]}
+                    onValueChange={(v) => handleRippleStrengthChange(v)}
+                    min={0.05}
+                    max={1.0}
+                    step={0.01}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Controls how much vertical energy each pointer interaction injects into the height field.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('rippleDamping') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Energy Damping: <span className="text-blue-400 font-bold">{rippleDamping.toFixed(3)}</span>
+                  </label>
+                  <Slider
+                    value={[rippleDamping]}
+                    onValueChange={(v) => handleRippleDampingChange(v)}
+                    min={0.85}
+                    max={0.999}
+                    step={0.001}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Higher values preserve ripples longer; lower values settle the field faster.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('ripplePropagation') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Propagation Rate: <span className="text-blue-400 font-bold">{ripplePropagation.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[ripplePropagation]}
+                    onValueChange={(v) => handleRipplePropagationChange(v)}
+                    min={0.1}
+                    max={1.3}
+                    step={0.01}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Adjusts how quickly disturbance energy travels outward through the solver grid.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('boatWakeStrength') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Boat Wake Strength: <span className="text-blue-400 font-bold">{boatWakeStrength.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[boatWakeStrength]}
+                    onValueChange={(v) => handleBoatWakeStrengthChange(v)}
+                    min={0.0}
+                    max={1.0}
+                    step={0.01}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Controls how strongly the floating boat feeds wake energy back into RippleFlux.</p>
+                </div>
+                )}
+
+                {supportsShaderControl('boatWakeRadius') && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Boat Wake Radius: <span className="text-blue-400 font-bold">{boatWakeRadius.toFixed(2)}m</span>
+                  </label>
+                  <Slider
+                    value={[boatWakeRadius]}
+                    onValueChange={(v) => handleBoatWakeRadiusChange(v)}
+                    min={0.4}
+                    max={6.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                  <p className="text-xs text-slate-500">Sets the wake footprint around the hull when the boat is riding the RippleFlux surface.</p>
                 </div>
                 )}
 

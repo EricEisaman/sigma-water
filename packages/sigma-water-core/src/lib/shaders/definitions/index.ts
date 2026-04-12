@@ -11,6 +11,7 @@ import { oceanWavesDefinition } from './oceanWaves';
 import { tropicalWavesDefinition } from './tropicalWaves';
 import { stormyWavesDefinition } from './stormyWaves';
 import { glassyWavesDefinition } from './glassyWaves';
+import { rippleFluxDefinition } from './rippleFlux';
 import { toonWaterDefinition } from './toonWater';
 
 /**
@@ -23,6 +24,7 @@ export const SHADER_DEFINITIONS: ShaderRegistryEntry[] = [
   tropicalWavesDefinition,
   stormyWavesDefinition,
   glassyWavesDefinition,
+  rippleFluxDefinition,
   toonWaterDefinition,
   // Future shaders:
   // foamyWavesDefinition,
@@ -37,5 +39,6 @@ export {
   tropicalWavesDefinition,
   stormyWavesDefinition,
   glassyWavesDefinition,
+  rippleFluxDefinition,
   toonWaterDefinition,
 };

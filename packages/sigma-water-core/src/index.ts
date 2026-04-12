@@ -7,6 +7,7 @@ export {
   TropicalWaves,
   StormyWaves,
   GlassyWaves,
+  RippleFlux,
   getWaterTypeById,
   waterTypeToId,
   idToWaterType,
@@ -25,6 +26,7 @@ export {
 export { VisualOcean } from './lib/VisualOcean';
 export { type VisualOceanConfig } from './lib/VisualOcean';
 export { type IWaterMesh, type IWaterMeshConfig } from './lib/water/WaterMeshFactory';
+export { RippleFluxSimulation } from './lib/water/RippleFluxSimulation';
 export {
   BOAT_MODEL_OPTIONS,
   ISLAND_MODEL_OPTIONS,

@@ -208,18 +208,9 @@ export default function Home() {
         />
       )}
 
-      {/* Footer info */}
-      {initialized && !error && (
-        <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md text-white p-3 rounded-lg z-40 text-xs border border-white/10">
-          <p className="text-gray-300">
-            💡 <strong>Tip:</strong> Adjust parameters in the control panel for real-time changes
-          </p>
-        </div>
-      )}
-
       {/* Status line */}
       {initialized && !error && (
-        <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md text-white p-3 rounded-lg z-40 text-xs border border-white/10 font-mono space-y-1">
+        <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md text-white p-3 rounded-lg z-40 text-xs border border-white/10 font-mono space-y-1">
           <p className="text-amber-400">⚓ {BOAT_MODEL_OPTIONS.find(o => o.id === boatModel)?.label ?? boatModel}</p>
           <p className="text-emerald-400">🏝 {ISLAND_MODEL_OPTIONS.find(o => o.id === islandModel)?.label ?? islandModel}</p>
           <p className="text-slate-300">🔵 {collisionMode === 0 ? 'GLB Geometry' : 'Physics Proxies'}</p>

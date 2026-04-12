@@ -20,21 +20,63 @@ export type IWaterMeshConfig = IWaterMesh;
 const WATER_MESH_CONFIGS: Record<WaterMeshTypeId, IWaterMesh> = {
   groundStandard: {
     meshType: 'groundStandard',
-    width: 3000,
-    height: 3000,
+    width: 300,
+    height: 300,
     subdivisions: 256,
   },
   groundDense: {
     meshType: 'groundDense',
-    width: 3000,
-    height: 3000,
+    width: 300,
+    height: 300,
     subdivisions: 320,
   },
   groundAdaptive: {
     meshType: 'groundAdaptive',
-    width: 3000,
-    height: 3000,
+    width: 300,
+    height: 300,
     subdivisions: 256,
+  },
+};
+
+interface WaterMeshProfile {
+  base: IWaterMesh;
+  adaptive?: Partial<Record<AdaptiveTier, IWaterMesh>>;
+}
+
+function clampMeshScale(meshScale = 1): number {
+  return Math.min(Math.max(meshScale, 0.1), 2.0);
+}
+
+function withMeshScale(config: IWaterMesh, meshScale = 1): IWaterMesh {
+  const scale = clampMeshScale(meshScale);
+  return {
+    ...config,
+    width: config.width * scale,
+    height: config.height * scale,
+  };
+}
+
+const WATER_TYPE_MESH_PROFILES: Record<WaterTypeId, WaterMeshProfile> = {
+  gerstnerWaves: {
+    base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
+  },
+  oceanWaves: {
+    base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
+  },
+  toonWater: {
+    base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
+  },
+  tropicalWaves: {
+    base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
+  },
+  stormyWaves: {
+    base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
+  },
+  glassyWaves: {
+    base: { meshType: 'groundAdaptive', width: 300, height: 300, subdivisions: 256 },
+  },
+  rippleFlux: {
+    base: { meshType: 'groundDense', width: 300, height: 300, subdivisions: 320 },
   },
 };
 
@@ -43,25 +85,29 @@ type AdaptiveTier = 'near' | 'mid' | 'far';
 const ADAPTIVE_TIER_CONFIGS: Record<AdaptiveTier, IWaterMesh> = {
   near: {
     meshType: 'groundAdaptive',
-    width: 2200,
-    height: 2200,
+    width: 220,
+    height: 220,
     subdivisions: 384,
   },
   mid: {
     meshType: 'groundAdaptive',
-    width: 3000,
-    height: 3000,
+    width: 300,
+    height: 300,
     subdivisions: 256,
   },
   far: {
     meshType: 'groundAdaptive',
-    width: 3600,
-    height: 3600,
+    width: 360,
+    height: 360,
     subdivisions: 224,
   },
 };
 
 function resolveMeshConfig(waterTypeId: WaterTypeId): IWaterMesh {
+  const profile = WATER_TYPE_MESH_PROFILES[waterTypeId];
+  if (profile) {
+    return profile.base;
+  }
   return WATER_MESH_CONFIGS[getWaterTypeById(waterTypeId).meshType];
 }
 
@@ -79,16 +125,19 @@ function resolveAdaptiveTier(cameraPosition?: { x: number; y: number; z: number 
 
 function resolveMeshConfigForContext(
   waterTypeId: WaterTypeId,
-  cameraPosition?: { x: number; y: number; z: number }
+  cameraPosition?: { x: number; y: number; z: number },
+  meshScale = 1,
 ): { config: IWaterMesh; adaptiveTier?: AdaptiveTier } {
-  const meshType = getWaterTypeById(waterTypeId).meshType;
-  if (meshType !== 'groundAdaptive') {
-    return { config: WATER_MESH_CONFIGS[meshType] };
+  const profile = WATER_TYPE_MESH_PROFILES[waterTypeId];
+  const baseConfig = profile?.base ?? WATER_MESH_CONFIGS[getWaterTypeById(waterTypeId).meshType];
+  if (baseConfig.meshType !== 'groundAdaptive') {
+    return { config: withMeshScale(baseConfig, meshScale) };
   }
 
   const tier = resolveAdaptiveTier(cameraPosition);
+  const adaptiveConfig = profile?.adaptive?.[tier];
   return {
-    config: ADAPTIVE_TIER_CONFIGS[tier],
+    config: withMeshScale(adaptiveConfig ?? ADAPTIVE_TIER_CONFIGS[tier], meshScale),
     adaptiveTier: tier,
   };
 }
@@ -97,9 +146,11 @@ export class WaterMeshFactory {
   public static createWaterMesh(
     waterTypeId: WaterTypeId,
     scene: Scene,
-    cameraPosition?: { x: number; y: number; z: number }
+    cameraPosition?: { x: number; y: number; z: number },
+    meshScale = 1,
   ): Mesh {
-    const { config, adaptiveTier } = resolveMeshConfigForContext(waterTypeId, cameraPosition);
+    const normalizedMeshScale = clampMeshScale(meshScale);
+    const { config, adaptiveTier } = resolveMeshConfigForContext(waterTypeId, cameraPosition, normalizedMeshScale);
     const mesh = MeshBuilder.CreateGround('ocean', {
       width: config.width,
       height: config.height,
@@ -115,15 +166,31 @@ export class WaterMeshFactory {
       waterMeshType: config.meshType,
       waterShaderId: waterTypeId,
       waterAdaptiveTier: adaptiveTier,
+      waterMeshWidth: config.width,
+      waterMeshHeight: config.height,
+      waterMeshSubdivisions: config.subdivisions,
+      waterMeshScale: normalizedMeshScale,
     };
 
     return mesh;
   }
 
-  public static needsMeshRecreation(currentMesh: Mesh, nextWaterTypeId: WaterTypeId): boolean {
+  public static needsMeshRecreation(currentMesh: Mesh, nextWaterTypeId: WaterTypeId, meshScale = 1): boolean {
     const currentType = (currentMesh.metadata?.waterMeshType as WaterMeshTypeId | undefined) ?? 'groundStandard';
-    const nextType = resolveMeshConfig(nextWaterTypeId).meshType;
-    return currentType !== nextType;
+    const currentWidth = Number(currentMesh.metadata?.waterMeshWidth ?? 300);
+    const currentHeight = Number(currentMesh.metadata?.waterMeshHeight ?? 300);
+    const currentSubdivisions = Number(currentMesh.metadata?.waterMeshSubdivisions ?? 256);
+    const currentScale = Number(currentMesh.metadata?.waterMeshScale ?? 1);
+    const normalizedMeshScale = clampMeshScale(meshScale);
+    const nextConfig = withMeshScale(resolveMeshConfig(nextWaterTypeId), normalizedMeshScale);
+
+    return (
+      currentType !== nextConfig.meshType ||
+      currentWidth !== nextConfig.width ||
+      currentHeight !== nextConfig.height ||
+      currentSubdivisions !== nextConfig.subdivisions ||
+      currentScale !== normalizedMeshScale
+    );
   }
 
   public static needsAdaptiveRetier(
@@ -145,7 +212,8 @@ export class WaterMeshFactory {
     currentMesh: Mesh,
     nextWaterTypeId: WaterTypeId,
     scene: Scene,
-    cameraPosition?: { x: number; y: number; z: number }
+    cameraPosition?: { x: number; y: number; z: number },
+    meshScale = 1,
   ): Mesh {
     const currentMaterial = currentMesh.material;
     if (currentMaterial) {
@@ -153,6 +221,6 @@ export class WaterMeshFactory {
     }
 
     currentMesh.dispose();
-    return WaterMeshFactory.createWaterMesh(nextWaterTypeId, scene, cameraPosition);
+    return WaterMeshFactory.createWaterMesh(nextWaterTypeId, scene, cameraPosition, meshScale);
   }
 }

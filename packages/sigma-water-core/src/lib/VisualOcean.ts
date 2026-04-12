@@ -31,6 +31,7 @@ import { normalizeBoatModelId, isIslandModelId, type BoatModelId, type IslandMod
 import { ShaderRegistry } from './shaders/ShaderRegistry';
 import { SHADER_DEFINITIONS } from './shaders/definitions';
 import { filterParameterStateForShader, isParameterSupportedForShader } from './water/ShaderParameterFilter';
+import { RippleFluxSimulation } from './water/RippleFluxSimulation';
 import { WaterMeshFactory } from './water/WaterMeshFactory';
 import { boostedCameraSpeed, topDownCameraPosition } from './camera';
 import { buildIntersectionFoamField } from './water/IntersectionFoamField';
@@ -103,9 +104,15 @@ export class VisualOcean {
   private islandIntersectionFoamFieldCacheKey: string | null = null;
   private underwaterFactor = 0;
   private boatVerticalVelocity = 0;
+  private boatRippleVelocity = new Vector3(0, 0, 0);
+  private boatHeadingYaw = 0;
+  private boatHeadingYawInitialized = false;
   private islandAlignmentOffset = new Vector3(0, 0, 0);
+  private rippleFluxSimulation: RippleFluxSimulation | null = null;
+  private ripplePointerActive = false;
   private showProxySpheres = false;
   private collisionMode = 0;
+  private readonly defaultRippleFluxFieldSize = 120;
   private readonly baseCameraSpeed = 0.5;
   private readonly speedBoostMultiplier = 4;
   private isSpeedBoostActive = false;
@@ -113,6 +120,22 @@ export class VisualOcean {
   private isMoveDownActive = false;
   private readonly handleResize = (): void => {
     this.engine?.resize();
+  };
+  private readonly handleCanvasPointerDown = (event: PointerEvent): void => {
+    if (event.button !== 0) {
+      return;
+    }
+    this.ripplePointerActive = true;
+    this.injectRippleFluxPointerImpulse(event);
+  };
+  private readonly handleCanvasPointerMove = (event: PointerEvent): void => {
+    if (!this.ripplePointerActive) {
+      return;
+    }
+    this.injectRippleFluxPointerImpulse(event);
+  };
+  private readonly handleCanvasPointerUp = (): void => {
+    this.ripplePointerActive = false;
   };
   private applySpeedBoostState(active: boolean): void {
     this.isSpeedBoostActive = active;
@@ -211,6 +234,11 @@ export class VisualOcean {
     if (this.config.enableGlobalListeners) {
       window.addEventListener('resize', this.handleResize);
     }
+
+    this.canvas.addEventListener('pointerdown', this.handleCanvasPointerDown);
+    this.canvas.addEventListener('pointermove', this.handleCanvasPointerMove);
+    window.addEventListener('pointerup', this.handleCanvasPointerUp);
+    window.addEventListener('pointercancel', this.handleCanvasPointerUp);
   }
 
   private async setupCamera(): Promise<void> {
@@ -272,7 +300,8 @@ export class VisualOcean {
     this.oceanMesh = WaterMeshFactory.createWaterMesh(
       'gerstnerWaves',
       this.scene,
-      cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined
+      cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined,
+      this.getWaterMeshScale()
     );
 
     console.log('📦 Initializing ShaderRegistry...');
@@ -291,6 +320,121 @@ export class VisualOcean {
     this.scene.onAfterRenderObservable.addOnce(() => {
       this.verifyRenderStateAndRecover();
     });
+  }
+
+  private isRippleFluxActive(): boolean {
+    return this.currentShaderName === 'rippleFlux';
+  }
+
+  private getRippleFluxAmplitude(): number {
+    return Math.max(this.parameterState.waveAmplitude ?? 1, 0.05);
+  }
+
+  private getWaterMeshScale(): number {
+    return Math.min(Math.max(this.parameterState.waterMeshScale ?? 1, 0.1), 2.0);
+  }
+
+  private ensureRippleFluxSimulation(): void {
+    if (!this.scene || this.rippleFluxSimulation) {
+      return;
+    }
+
+    const oceanBounds = this.getOceanMeshRippleBounds();
+
+    this.rippleFluxSimulation = new RippleFluxSimulation(this.scene, {
+      resolution: 128,
+      domainWidth: oceanBounds?.[2] ?? this.defaultRippleFluxFieldSize,
+      domainHeight: oceanBounds?.[3] ?? this.defaultRippleFluxFieldSize,
+      centerX: oceanBounds ? oceanBounds[0] + oceanBounds[2] * 0.5 : 0,
+      centerZ: oceanBounds ? oceanBounds[1] + oceanBounds[3] * 0.5 : 0,
+    });
+    this.syncRippleFluxFieldToOceanMesh();
+    this.syncRippleFluxParameters();
+    this.applyRippleFluxUniforms();
+  }
+
+  private syncRippleFluxParameters(): void {
+    this.rippleFluxSimulation?.setParameters({
+      damping: this.parameterState.rippleDamping ?? 0.965,
+      propagation: this.parameterState.ripplePropagation ?? 0.9,
+    });
+  }
+
+  private applyRippleFluxUniforms(): void {
+    if (!this.shaderRegistry || !this.rippleFluxSimulation) {
+      return;
+    }
+
+    this.syncRippleFluxFieldToOceanMesh();
+
+    const texture = this.rippleFluxSimulation.getTexture();
+    if (texture) {
+      this.shaderRegistry.setUniform('rippleHeightTexture', texture);
+    }
+    this.shaderRegistry.setUniform('rippleFieldBounds', this.rippleFluxSimulation.getFieldBounds());
+    this.shaderRegistry.setUniform('rippleTexelSize', this.rippleFluxSimulation.getTexelSize());
+  }
+
+  private getOceanMeshRippleBounds(): [number, number, number, number] | null {
+    if (!this.oceanMesh) {
+      return null;
+    }
+
+    this.oceanMesh.computeWorldMatrix(true);
+    const bounds = this.oceanMesh.getBoundingInfo().boundingBox;
+    const minX = bounds.minimumWorld.x;
+    const minZ = bounds.minimumWorld.z;
+    const width = bounds.maximumWorld.x - minX;
+    const height = bounds.maximumWorld.z - minZ;
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+
+    return [minX, minZ, width, height];
+  }
+
+  private syncRippleFluxFieldToOceanMesh(): void {
+    if (!this.rippleFluxSimulation) {
+      return;
+    }
+
+    const oceanBounds = this.getOceanMeshRippleBounds();
+    if (!oceanBounds) {
+      return;
+    }
+
+    this.rippleFluxSimulation.setFieldBounds(
+      oceanBounds[0],
+      oceanBounds[1],
+      oceanBounds[2],
+      oceanBounds[3],
+    );
+  }
+
+  private injectRippleFluxPointerImpulse(event: PointerEvent): void {
+    if (!this.scene || !this.oceanMesh || !this.isRippleFluxActive()) {
+      return;
+    }
+
+    this.ensureRippleFluxSimulation();
+    if (!this.rippleFluxSimulation) {
+      return;
+    }
+
+    const bounds = this.canvas.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    const pick = this.scene.pick(x, y, (mesh) => mesh === this.oceanMesh);
+    const point = pick?.pickedPoint;
+    if (!point) {
+      return;
+    }
+
+    const radius = Math.max(this.parameterState.rippleRadius ?? 3.2, 0.2);
+    const strength = -(this.parameterState.rippleStrength ?? 0.35);
+    this.rippleFluxSimulation.disturbWorld(point.x, point.z, radius, strength);
+    this.rippleFluxSimulation.refreshTexture();
+    this.applyRippleFluxUniforms();
   }
 
   private createFallbackIntersectionFoamTexture(name: string): RawTexture | null {
@@ -506,12 +650,12 @@ export class VisualOcean {
   }
 
   private getBoatAnchorCenter(): Vector3 {
+    if (this.boatCollisionSphere) {
+      return this.boatCollisionSphere.position.clone();
+    }
     const boatBounds = this.getBoundsData(this.boatMeshes);
     if (boatBounds) {
       return boatBounds.center.clone();
-    }
-    if (this.boatCollisionSphere) {
-      return this.boatCollisionSphere.position.clone();
     }
     return new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
   }
@@ -561,7 +705,9 @@ export class VisualOcean {
       this.alignRootToBoundsCenter(this.boatRoot, this.boatMeshes, anchorCenter);
       this.applyObjectScales();
       this.rebuildBoatIntersectionFoamField();
+      this.boatHeadingYawInitialized = false;
       this.boatModelId = modelId;
+      this.moveGlbsToSpheres(false);
       console.log(`✅ Boat GLB loaded (${BOAT_MODEL_FILES[modelId]})`);
     } catch (error) {
       this.boatMeshes = previousBoatMeshes;
@@ -604,6 +750,7 @@ export class VisualOcean {
       this.applyObjectScales();
       this.rebuildIslandIntersectionFoamField();
       this.islandModelId = modelId;
+      this.moveGlbsToSpheres(false);
       console.log(`✅ Island GLB loaded (${ISLAND_MODEL_FILES[modelId]})`);
     } catch (error) {
       console.warn(`⚠️ Island GLB load failed (${ISLAND_MODEL_FILES[modelId]}), using proxy-only island collision`, error);
@@ -658,8 +805,160 @@ export class VisualOcean {
     return wA + wB + wC + wD + wE + wF + interference;
   }
 
+  private sampleWaterSurface(x: number, z: number): { height: number; normal: Vector3 } {
+    if (this.isRippleFluxActive() && this.rippleFluxSimulation) {
+      return this.rippleFluxSimulation.sampleWorld(x, z, this.getRippleFluxAmplitude());
+    }
+
+    const sampleDistance = 0.6;
+    const height = this.getWaveHeightAt(x, z);
+    const left = this.getWaveHeightAt(x - sampleDistance, z);
+    const right = this.getWaveHeightAt(x + sampleDistance, z);
+    const down = this.getWaveHeightAt(x, z - sampleDistance);
+    const up = this.getWaveHeightAt(x, z + sampleDistance);
+    const normal = new Vector3(
+      -(right - left) / (sampleDistance * 2),
+      1,
+      -(up - down) / (sampleDistance * 2)
+    ).normalize();
+    return { height, normal };
+  }
+
+  private normalizeAngle(angle: number): number {
+    let normalized = angle;
+    while (normalized > Math.PI) {
+      normalized -= Math.PI * 2;
+    }
+    while (normalized < -Math.PI) {
+      normalized += Math.PI * 2;
+    }
+    return normalized;
+  }
+
+  private getBoatHeadingYaw(deltaTime: number, followVelocity: boolean): number {
+    if (!this.boatHeadingYawInitialized) {
+      const initialYaw = this.boatRoot?.rotationQuaternion?.toEulerAngles().y
+        ?? this.boatRoot?.rotation.y
+        ?? 0;
+      this.boatHeadingYaw = initialYaw;
+      this.boatHeadingYawInitialized = true;
+    }
+
+    if (!followVelocity) {
+      return this.boatHeadingYaw;
+    }
+
+    const speed = Math.sqrt(this.boatRippleVelocity.x ** 2 + this.boatRippleVelocity.z ** 2);
+    if (speed < 0.02) {
+      return this.boatHeadingYaw;
+    }
+
+    const desiredYaw = Math.atan2(this.boatRippleVelocity.x, this.boatRippleVelocity.z);
+    const yawError = this.normalizeAngle(desiredYaw - this.boatHeadingYaw);
+    const maxYawRate = 0.55;
+    const yawStep = Math.max(-maxYawRate * deltaTime, Math.min(maxYawRate * deltaTime, yawError * 0.3));
+    this.boatHeadingYaw = this.normalizeAngle(this.boatHeadingYaw + yawStep);
+    return this.boatHeadingYaw;
+  }
+
+  private getBoatSamplingFrame(): { center: Vector3; length: number; width: number } {
+    const bounds = this.getBoundsData(this.boatMeshes);
+    const center = bounds?.center.clone()
+      ?? this.boatCollisionSphere?.position.clone()
+      ?? this.boatCollisionCenter.clone();
+
+    const fallbackLength = Math.max(this.boatCollisionRadius * 2.6, 4.2);
+    const fallbackWidth = Math.max(this.boatCollisionRadius * 1.45, 2.0);
+
+    return {
+      center,
+      length: Math.max(bounds?.extentZ ?? fallbackLength, 1.4),
+      width: Math.max(bounds?.extentX ?? fallbackWidth, 0.9),
+    };
+  }
+
+  private applyRippleFluxBoatDynamics(deltaTime: number): void {
+    if (!this.boatRoot || !this.boatCollisionSphere) {
+      return;
+    }
+
+    this.ensureRippleFluxSimulation();
+    if (!this.rippleFluxSimulation) {
+      return;
+    }
+
+    const baseOffset = this.parameterState.boatYOffset ?? 0.4;
+    const wakeStrength = Math.max(this.parameterState.boatWakeStrength ?? 0.24, 0);
+    const wakeRadius = Math.max(this.parameterState.boatWakeRadius ?? 2.4, 0.2);
+    const sampleFrame = this.getBoatSamplingFrame();
+    const boatLength = Math.max(sampleFrame.length, this.boatCollisionRadius * 2.0);
+    const boatWidth = Math.max(sampleFrame.width, this.boatCollisionRadius * 1.3);
+    const currentSpeed = Math.sqrt(this.boatRippleVelocity.x ** 2 + this.boatRippleVelocity.z ** 2);
+    const headingYaw = this.getBoatHeadingYaw(deltaTime, true);
+    const forward = new Vector3(Math.sin(headingYaw), 0, Math.cos(headingYaw));
+    const right = new Vector3(forward.z, 0, -forward.x);
+    const centerPosition = sampleFrame.center;
+    const frontPosition = centerPosition.add(forward.scale(boatLength * 0.45));
+    const backPosition = centerPosition.add(forward.scale(-boatLength * 0.45));
+    const leftPosition = centerPosition.add(right.scale(-boatWidth * 0.5));
+    const rightPosition = centerPosition.add(right.scale(boatWidth * 0.5));
+
+    const centerSample = this.sampleWaterSurface(centerPosition.x, centerPosition.z);
+    const frontSample = this.sampleWaterSurface(frontPosition.x, frontPosition.z);
+    const backSample = this.sampleWaterSurface(backPosition.x, backPosition.z);
+    const leftSample = this.sampleWaterSurface(leftPosition.x, leftPosition.z);
+    const rightSample = this.sampleWaterSurface(rightPosition.x, rightPosition.z);
+
+    const targetY = centerSample.height + baseOffset;
+  const displacement = targetY - centerPosition.y;
+  const acceleration = displacement * 10.0 - this.boatVerticalVelocity * 5.4;
+    this.boatVerticalVelocity += acceleration * deltaTime;
+    this.boatCollisionSphere.position.y += this.boatVerticalVelocity * deltaTime;
+
+  const driftAcceleration = new Vector3(-centerSample.normal.x, 0, -centerSample.normal.z).scale(0.95 + wakeStrength * 1.1);
+    this.boatRippleVelocity.x += driftAcceleration.x * deltaTime;
+    this.boatRippleVelocity.z += driftAcceleration.z * deltaTime;
+  const horizontalDamping = Math.exp(-deltaTime * 3.2);
+    this.boatRippleVelocity.x *= horizontalDamping;
+    this.boatRippleVelocity.z *= horizontalDamping;
+    this.boatCollisionSphere.position.x += this.boatRippleVelocity.x;
+    this.boatCollisionSphere.position.z += this.boatRippleVelocity.z;
+
+    const [minX, minZ, sizeX, sizeZ] = this.rippleFluxSimulation.getFieldBounds();
+    const maxX = minX + sizeX;
+    const maxZ = minZ + sizeZ;
+    const clampMargin = Math.max(this.boatCollisionRadius * 1.2, 2.0);
+    this.boatCollisionSphere.position.x = Math.min(Math.max(this.boatCollisionSphere.position.x, minX + clampMargin), maxX - clampMargin);
+    this.boatCollisionSphere.position.z = Math.min(Math.max(this.boatCollisionSphere.position.z, minZ + clampMargin), maxZ - clampMargin);
+
+    const pitch = Math.max(-0.32, Math.min(0.32, Math.atan2(frontSample.height - backSample.height, boatLength) * 0.86));
+    const roll = Math.max(-0.32, Math.min(0.32, Math.atan2(rightSample.height - leftSample.height, boatWidth) * 0.78));
+    const targetRotation = Quaternion.RotationYawPitchRoll(headingYaw, pitch, -roll);
+    if (!this.boatRoot.rotationQuaternion) {
+      this.boatRoot.rotationQuaternion = targetRotation;
+    } else {
+      this.boatRoot.rotationQuaternion = Quaternion.Slerp(
+        this.boatRoot.rotationQuaternion,
+        targetRotation,
+        Math.min(deltaTime * 4.5, 1.0)
+      );
+    }
+
+    const disturbance = -wakeStrength * (0.14 + Math.min(currentSpeed * 2.5, 0.4) + Math.min(Math.abs(this.boatVerticalVelocity) * 0.03, 0.16));
+    this.rippleFluxSimulation.disturbWorld(centerPosition.x, centerPosition.z, wakeRadius, disturbance);
+    this.rippleFluxSimulation.disturbWorld(frontPosition.x, frontPosition.z, wakeRadius * 0.78, disturbance * 0.72);
+    this.rippleFluxSimulation.disturbWorld(backPosition.x, backPosition.z, wakeRadius * 0.92, disturbance * 0.58);
+    this.rippleFluxSimulation.refreshTexture();
+    this.applyRippleFluxUniforms();
+  }
+
   private applyBoatFlotation(deltaTime: number): void {
     if (!this.boatRoot || !this.boatCollisionSphere) {
+      return;
+    }
+
+    if (this.isRippleFluxActive()) {
+      this.applyRippleFluxBoatDynamics(deltaTime);
       return;
     }
 
@@ -669,32 +968,39 @@ export class VisualOcean {
       return;
     }
 
-    const boatX = this.boatCollisionSphere.position.x;
-    const boatZ = this.boatCollisionSphere.position.z;
-
-    const boatLength = 8.5;
-    const boatWidth = 3.2;
+    const sampleFrame = this.getBoatSamplingFrame();
+    const boatX = sampleFrame.center.x;
+    const boatZ = sampleFrame.center.z;
+    const boatLength = Math.max(sampleFrame.length, 1.4);
+    const boatWidth = Math.max(sampleFrame.width, 0.9);
     const baseOffset = this.parameterState.boatYOffset ?? 0.4;
 
+    const headingYaw = this.getBoatHeadingYaw(deltaTime, false);
+    const forward = new Vector3(Math.sin(headingYaw), 0, Math.cos(headingYaw));
+    const right = new Vector3(forward.z, 0, -forward.x);
+    const frontSamplePosition = sampleFrame.center.add(forward.scale(boatLength * 0.45));
+    const backSamplePosition = sampleFrame.center.add(forward.scale(-boatLength * 0.45));
+    const leftSamplePosition = sampleFrame.center.add(right.scale(-boatWidth * 0.5));
+    const rightSamplePosition = sampleFrame.center.add(right.scale(boatWidth * 0.5));
+
     const centerHeight = this.getWaveHeightAt(boatX, boatZ);
-    const frontHeight = this.getWaveHeightAt(boatX, boatZ + boatLength * 0.5);
-    const backHeight = this.getWaveHeightAt(boatX, boatZ - boatLength * 0.5);
-    const leftHeight = this.getWaveHeightAt(boatX - boatWidth * 0.5, boatZ);
-    const rightHeight = this.getWaveHeightAt(boatX + boatWidth * 0.5, boatZ);
+    const frontHeight = this.getWaveHeightAt(frontSamplePosition.x, frontSamplePosition.z);
+    const backHeight = this.getWaveHeightAt(backSamplePosition.x, backSamplePosition.z);
+    const leftHeight = this.getWaveHeightAt(leftSamplePosition.x, leftSamplePosition.z);
+    const rightHeight = this.getWaveHeightAt(rightSamplePosition.x, rightSamplePosition.z);
 
     const targetY = centerHeight + baseOffset;
     const springK = 9.0;
     const damping = 4.2;
-    const displacement = targetY - this.boatCollisionSphere.position.y;
+    const displacement = targetY - sampleFrame.center.y;
     const acceleration = displacement * springK - this.boatVerticalVelocity * damping;
     this.boatVerticalVelocity += acceleration * deltaTime;
     this.boatCollisionSphere.position.y += this.boatVerticalVelocity * deltaTime;
 
-    const pitch = Math.atan2(frontHeight - backHeight, boatLength) * 0.72;
-    const roll = Math.atan2(rightHeight - leftHeight, boatWidth) * 0.68;
-    const yaw = Math.sin(this.elapsedTime * 0.15) * 0.08;
+    const pitch = Math.max(-0.28, Math.min(0.28, Math.atan2(frontHeight - backHeight, boatLength) * 0.72));
+    const roll = Math.max(-0.28, Math.min(0.28, Math.atan2(rightHeight - leftHeight, boatWidth) * 0.68));
 
-    const targetRotation = Quaternion.RotationYawPitchRoll(yaw, pitch, -roll);
+    const targetRotation = Quaternion.RotationYawPitchRoll(headingYaw, pitch, -roll);
     if (!this.boatRoot.rotationQuaternion) {
       this.boatRoot.rotationQuaternion = targetRotation;
     } else {
@@ -861,7 +1167,7 @@ export class VisualOcean {
     });
   }
 
-  private moveGlbsToSpheres(): void {
+  private moveGlbsToSpheres(logOffsets = true): void {
     const { boat: boatSphereCenter, island: islandSphereCenter } = this.getCurrentSphereCenters();
     const boatBounds = this.getBoundsData(this.boatMeshes);
     const islandBounds = this.getBoundsData(this.islandMeshes);
@@ -871,7 +1177,6 @@ export class VisualOcean {
 
     if (boatHasBounds && boatBounds && this.boatRoot) {
       const delta = boatSphereCenter.subtract(boatBounds.center);
-      delta.y = 0;
       this.boatRoot.position.addInPlace(delta);
     }
 
@@ -883,7 +1188,9 @@ export class VisualOcean {
 
     this.updateCollisionSimulation();
     this.applyCollisionUniforms();
-    this.logGlbSphereOffsets();
+    if (logOffsets) {
+      this.logGlbSphereOffsets();
+    }
   }
 
   private autoCenterGlbsToSpheres(): void {
@@ -898,7 +1205,6 @@ export class VisualOcean {
       const boatBounds = this.getBoundsData(this.boatMeshes);
       if (boatBounds) {
         const delta = boatTarget.subtract(boatBounds.center);
-        delta.y = 0;
         const maxStep = 0.2;
         if (delta.length() > maxStep) {
           delta.normalize().scaleInPlace(maxStep);
@@ -928,18 +1234,19 @@ export class VisualOcean {
   private updateCollisionSimulation(): void {
     const waveAmplitude = Math.max(this.parameterState.waveAmplitude ?? 1.8, 0.0);
     const windSpeed = Math.max(this.parameterState.windSpeed ?? 0.6, 0.0);
+    const rippleFluxActive = this.isRippleFluxActive();
 
     const bobAmount = 0.18 + waveAmplitude * 0.08;
     const boatYOffset = this.parameterState.boatYOffset ?? 0.4;
     const islandYOffset = this.parameterState.islandYOffset ?? 0;
 
-    if (this.collisionMode === 0 && this.boatCollisionSphere) {
+    if (!rippleFluxActive && this.collisionMode === 0 && this.boatCollisionSphere) {
       this.boatCollisionSphere.position.x = -12;
       this.boatCollisionSphere.position.z = -24;
-      this.boatCollisionSphere.position.y = this.getWaveHeightAt(this.boatCollisionSphere.position.x, this.boatCollisionSphere.position.z) + boatYOffset;
+      this.boatCollisionSphere.position.y = this.sampleWaterSurface(this.boatCollisionSphere.position.x, this.boatCollisionSphere.position.z).height + boatYOffset;
     }
 
-    if (this.collisionMode === 1) {
+    if (!rippleFluxActive && this.collisionMode === 1) {
       if (this.boatCollisionSphere) {
         this.boatCollisionSphere.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
         this.boatCollisionSphere.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
@@ -961,7 +1268,7 @@ export class VisualOcean {
       this.islandCollisionCenter.y = islandYOffset;
     }
 
-    if (this.collisionMode === 1) {
+    if (!rippleFluxActive && this.collisionMode === 1) {
       this.autoCenterGlbsToSpheres();
     }
 
@@ -972,7 +1279,7 @@ export class VisualOcean {
 
       // Boat: use GLB bounds if available, else use scale-based fallback (but NOT sphere position)
       if (boatBounds) {
-        const boatWaterHeight = this.getWaveHeightAt(boatBounds.center.x, boatBounds.center.z);
+        const boatWaterHeight = this.sampleWaterSurface(boatBounds.center.x, boatBounds.center.z).height;
         this.boatCollisionCenter.set(boatBounds.center.x, boatWaterHeight, boatBounds.center.z);
         const hullRadius = Math.max(boatBounds.extentX, boatBounds.extentZ) * 0.42;
         this.boatCollisionRadius = Math.max(0.45, hullRadius);
@@ -983,7 +1290,7 @@ export class VisualOcean {
           this.boatCollisionCenter.copyFrom(this.boatRoot.position);
         }
         this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
-        const boatWaterHeight = this.getWaveHeightAt(this.boatCollisionCenter.x, this.boatCollisionCenter.z);
+        const boatWaterHeight = this.sampleWaterSurface(this.boatCollisionCenter.x, this.boatCollisionCenter.z).height;
         this.boatCollisionCenter.y = boatWaterHeight;
         this.boatIntersectionFactor = Math.max(0, Math.min(1, (boatWaterHeight - boatYOffset + 0.6) / 1.5));
       }
@@ -992,7 +1299,7 @@ export class VisualOcean {
       if (islandBounds) {
         const shorelineBandWidth = Math.min(Math.max(this.parameterState.islandShorelineBandWidth ?? 0.28, 0.08), 0.8);
         const shorelineFoamGain = Math.max(this.parameterState.islandShorelineFoamGain ?? 1, 0);
-        const islandWaterHeight = this.getWaveHeightAt(islandBounds.center.x, islandBounds.center.z);
+        const islandWaterHeight = this.sampleWaterSurface(islandBounds.center.x, islandBounds.center.z).height;
         this.islandCollisionCenter.set(islandBounds.center.x, islandWaterHeight, islandBounds.center.z);
         const shorelineRadius = (islandBounds.extentX + islandBounds.extentZ) * 0.25;
         this.islandCollisionRadius = Math.max(1.0, shorelineRadius);
@@ -1004,7 +1311,7 @@ export class VisualOcean {
           this.islandCollisionCenter.copyFrom(this.islandRoot.position);
         }
         this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
-        const islandWaterHeight = this.getWaveHeightAt(this.islandCollisionCenter.x, this.islandCollisionCenter.z);
+        const islandWaterHeight = this.sampleWaterSurface(this.islandCollisionCenter.x, this.islandCollisionCenter.z).height;
         this.islandCollisionCenter.y = islandWaterHeight;
         this.islandIntersectionFactor = Math.max(0, Math.min(1, (islandWaterHeight - islandYOffset + 1.2) / 2.5));
       }
@@ -1021,8 +1328,8 @@ export class VisualOcean {
       // Use scale-based radii for this mode
       this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
       this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
-      const boatWaterHeight = this.getWaveHeightAt(this.boatCollisionCenter.x, this.boatCollisionCenter.z);
-      const islandWaterHeight = this.getWaveHeightAt(this.islandCollisionCenter.x, this.islandCollisionCenter.z);
+      const boatWaterHeight = this.sampleWaterSurface(this.boatCollisionCenter.x, this.boatCollisionCenter.z).height;
+      const islandWaterHeight = this.sampleWaterSurface(this.islandCollisionCenter.x, this.islandCollisionCenter.z).height;
       this.boatIntersectionFactor = Math.max(
         0,
         Math.min(1, (boatWaterHeight - (this.boatCollisionCenter.y - this.boatCollisionRadius * 0.45)) / Math.max(this.boatCollisionRadius, 0.1))
@@ -1150,8 +1457,15 @@ export class VisualOcean {
     const nextWaterType = parseWaterTypeId(shaderName);
 
     try {
+      if (nextWaterType === 'rippleFlux') {
+        this.ensureRippleFluxSimulation();
+      } else {
+        this.ripplePointerActive = false;
+      }
+
       // Check if mesh needs to be replaced
-      const needsRecreation = WaterMeshFactory.needsMeshRecreation(this.oceanMesh, nextWaterType);
+      const meshScale = this.getWaterMeshScale();
+      const needsRecreation = WaterMeshFactory.needsMeshRecreation(this.oceanMesh, nextWaterType, meshScale);
 
       // Always dispose active material before switching.
       // If mesh is reused, a fresh material will be created on the new context.
@@ -1164,8 +1478,10 @@ export class VisualOcean {
           this.oceanMesh,
           nextWaterType,
           this.scene,
-          cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined
+          cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined,
+          meshScale
         );
+        this.syncRippleFluxFieldToOceanMesh();
       }
 
       // Switch shader in registry
@@ -1173,6 +1489,9 @@ export class VisualOcean {
       this.currentShaderName = nextWaterType;
       this.shaderRegistry.setUniforms(filterParameterStateForShader(this.parameterState, nextWaterType));
       this.shaderRegistry.setUniform('time', this.elapsedTime);
+      if (nextWaterType === 'rippleFlux') {
+        this.applyRippleFluxUniforms();
+      }
       this.applyCollisionUniforms();
 
       if (!this.oceanMesh.material) {
@@ -1191,6 +1510,40 @@ export class VisualOcean {
 
   public updateParameter(key: string, value: number): void {
     this.parameterState[key] = value;
+
+    if (key === 'rippleRadius' || key === 'rippleStrength' || key === 'boatWakeStrength' || key === 'boatWakeRadius') {
+      return;
+    }
+
+    if (key === 'rippleDamping' || key === 'ripplePropagation') {
+      this.syncRippleFluxParameters();
+      return;
+    }
+
+    if (key === 'waterMeshScale') {
+      if (!this.scene || !this.oceanMesh || !this.shaderRegistry) {
+        return;
+      }
+
+      const cameraPos = this.camera?.position;
+      this.shaderRegistry.disposeActiveMaterial();
+      this.oceanMesh = WaterMeshFactory.replaceWaterMesh(
+        this.oceanMesh,
+        this.currentShaderName,
+        this.scene,
+        cameraPos ? { x: cameraPos.x, y: cameraPos.y, z: cameraPos.z } : undefined,
+        this.getWaterMeshScale()
+      );
+      this.syncRippleFluxFieldToOceanMesh();
+      this.shaderRegistry.switchTo(this.currentShaderName, this.oceanMesh);
+      this.shaderRegistry.setUniforms(filterParameterStateForShader(this.parameterState, this.currentShaderName));
+      this.shaderRegistry.setUniform('time', this.elapsedTime);
+      this.applyCollisionUniforms();
+      if (this.isRippleFluxActive()) {
+        this.applyRippleFluxUniforms();
+      }
+      return;
+    }
 
     if (key === 'showProxySpheres') {
       this.showProxySpheres = value >= 0.5;
@@ -1342,6 +1695,13 @@ export class VisualOcean {
     this.lastFrameTimeMs = now;
     this.elapsedTime += deltaTime;
 
+    if (this.isRippleFluxActive()) {
+      this.ensureRippleFluxSimulation();
+      this.syncRippleFluxParameters();
+      this.rippleFluxSimulation?.update(deltaTime);
+      this.applyRippleFluxUniforms();
+    }
+
     this.updateCollisionSimulation();
     this.applyBoatFlotation(deltaTime);
     this.shaderRegistry.update(deltaTime);
@@ -1374,8 +1734,10 @@ export class VisualOcean {
               this.oceanMesh,
               this.currentShaderName,
               this.scene,
-              { x: p.x, y: p.y, z: p.z }
+              { x: p.x, y: p.y, z: p.z },
+              this.getWaterMeshScale()
             );
+            this.syncRippleFluxFieldToOceanMesh();
             this.shaderRegistry.switchTo(this.currentShaderName, this.oceanMesh);
             this.shaderRegistry.setUniforms(filterParameterStateForShader(this.parameterState, this.currentShaderName));
             this.shaderRegistry.setUniform('time', this.elapsedTime);
@@ -1398,6 +1760,8 @@ export class VisualOcean {
 
   public dispose(): void {
     this.applySpeedBoostState(false);
+    this.rippleFluxSimulation?.dispose();
+    this.rippleFluxSimulation = null;
     this.boatIntersectionFoamTexture?.dispose();
     this.islandIntersectionFoamTexture?.dispose();
     this.boatIntersectionFoamTexture = null;
@@ -1408,6 +1772,10 @@ export class VisualOcean {
     this.disposeModelNodes(this.islandModelNodes);
     this.boatCollisionSphere = null;
     this.islandCollisionSphere = null;
+    this.canvas.removeEventListener('pointerdown', this.handleCanvasPointerDown);
+    this.canvas.removeEventListener('pointermove', this.handleCanvasPointerMove);
+    window.removeEventListener('pointerup', this.handleCanvasPointerUp);
+    window.removeEventListener('pointercancel', this.handleCanvasPointerUp);
     window.removeEventListener('resize', this.handleResize);
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);

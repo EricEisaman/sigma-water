@@ -28,6 +28,12 @@ export type WaterMeshTypeId = 'groundStandard' | 'groundDense' | 'groundAdaptive
 export type ShaderControlKey =
   | 'waveAmplitude'
   | 'waveFrequency'
+  | 'rippleRadius'
+  | 'rippleStrength'
+  | 'rippleDamping'
+  | 'ripplePropagation'
+  | 'boatWakeStrength'
+  | 'boatWakeRadius'
   | 'windDirection'
   | 'windSpeed'
   | 'crestFoamEnabled'
@@ -71,6 +77,12 @@ export type ShaderControlKey =
 export const SHADER_CONTROL_KEYS: readonly ShaderControlKey[] = [
   'waveAmplitude',
   'waveFrequency',
+  'rippleRadius',
+  'rippleStrength',
+  'rippleDamping',
+  'ripplePropagation',
+  'boatWakeStrength',
+  'boatWakeRadius',
   'windDirection',
   'windSpeed',
   'crestFoamEnabled',
@@ -316,7 +328,36 @@ export const GlassyWaves: IWater = {
   ],
 } as const;
 
-export const WATER_TYPES = [GerstnerWaves, OceanWaves, ToonWater, TropicalWaves, StormyWaves, GlassyWaves] as const;
+export const RippleFlux: IWater = {
+  id: 'rippleFlux',
+  meshType: 'groundDense',
+  displayName: 'RippleFlux',
+  description: 'Interactive ripple field with direct pointer impulses and floating-boat feedback',
+  supportsFoam: false,
+  supportsCaustics: false,
+  shaderControlKeys: [
+    'waveAmplitude',
+    'rippleRadius',
+    'rippleStrength',
+    'rippleDamping',
+    'ripplePropagation',
+    'boatWakeStrength',
+    'boatWakeRadius',
+    'specularIntensity',
+    'skyReflectionMix',
+    'depthFadeDistance',
+    'depthFadeExponent',
+    'underwaterEnabled',
+    'underwaterTransitionDepth',
+    'underwaterFogDensity',
+    'underwaterHorizonMix',
+    'underwaterColorR',
+    'underwaterColorG',
+    'underwaterColorB',
+  ],
+} as const;
+
+export const WATER_TYPES = [GerstnerWaves, OceanWaves, ToonWater, TropicalWaves, StormyWaves, GlassyWaves, RippleFlux] as const;
 
 export type WaterTypeId = typeof WATER_TYPES[number]['id'];
 
@@ -326,7 +367,8 @@ export type WaterType =
   | { type: 'toonWater' }
   | { type: 'tropicalWaves' }
   | { type: 'stormyWaves' }
-  | { type: 'glassyWaves' };
+  | { type: 'glassyWaves' }
+  | { type: 'rippleFlux' };
 
 export function getWaterTypeById(id: WaterTypeId): IWater {
   const waterType = WATER_TYPES.find((wt) => wt.id === id);
@@ -346,6 +388,7 @@ export function idToWaterType(id: WaterTypeId): WaterType {
   if (id === 'tropicalWaves') return { type: 'tropicalWaves' };
   if (id === 'stormyWaves') return { type: 'stormyWaves' };
   if (id === 'glassyWaves') return { type: 'glassyWaves' };
+  if (id === 'rippleFlux') return { type: 'rippleFlux' };
   return { type: 'gerstnerWaves' };
 }
 
@@ -355,6 +398,7 @@ export function parseWaterType(value: string): WaterType {
   if (value === 'tropicalWaves') return { type: 'tropicalWaves' };
   if (value === 'stormyWaves') return { type: 'stormyWaves' };
   if (value === 'glassyWaves') return { type: 'glassyWaves' };
+  if (value === 'rippleFlux') return { type: 'rippleFlux' };
   return { type: 'gerstnerWaves' };
 }
 
@@ -368,6 +412,7 @@ export function parseWaterTypeId(value: string): WaterTypeId {
   if (value === 'tropicalWaves') return 'tropicalWaves';
   if (value === 'stormyWaves') return 'stormyWaves';
   if (value === 'glassyWaves') return 'glassyWaves';
+  if (value === 'rippleFlux') return 'rippleFlux';
   return 'gerstnerWaves';
 }
 

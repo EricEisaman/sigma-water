@@ -53,6 +53,11 @@ const ISLAND_MODEL_FILES: Record<IslandModelId, string> = {
   lighthouseIsland: 'lighthouse-island.glb',
 };
 
+const BOAT_INSTANCE_NUMBER = 1;
+const ISLAND_INSTANCE_NUMBER = 1;
+const BOAT_TOP_LEVEL_NAME = `boat_${BOAT_INSTANCE_NUMBER}`;
+const ISLAND_TOP_LEVEL_NAME = `island_${ISLAND_INSTANCE_NUMBER}`;
+
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
   private config: Required<VisualOceanConfig>;
@@ -107,7 +112,6 @@ export class VisualOcean {
   private boatRippleVelocity = new Vector3(0, 0, 0);
   private boatHeadingYaw = 0;
   private boatHeadingYawInitialized = false;
-  private islandAlignmentOffset = new Vector3(0, 0, 0);
   private rippleFluxSimulation: RippleFluxSimulation | null = null;
   private ripplePointerActive = false;
   private showProxySpheres = false;
@@ -584,8 +588,8 @@ export class VisualOcean {
       return;
     }
 
-    const boatSphere = MeshBuilder.CreateSphere('boatCollisionSphere', { diameter: 1, segments: 24 }, this.scene);
-    const islandSphere = MeshBuilder.CreateSphere('islandCollisionSphere', { diameter: 1, segments: 24 }, this.scene);
+    const boatSphere = MeshBuilder.CreateSphere(BOAT_TOP_LEVEL_NAME, { diameter: 1, segments: 24 }, this.scene);
+    const islandSphere = MeshBuilder.CreateSphere(ISLAND_TOP_LEVEL_NAME, { diameter: 1, segments: 24 }, this.scene);
 
     const boatMat = new StandardMaterial('boatCollisionSphereMaterial', this.scene);
     boatMat.diffuseColor = new Color3(0.95, 0.35, 0.25);
@@ -612,8 +616,8 @@ export class VisualOcean {
       return;
     }
 
-    this.boatRoot = new TransformNode('boatRoot', this.scene);
-    this.islandRoot = new TransformNode('islandRoot', this.scene);
+    this.boatRoot = new TransformNode(`${BOAT_TOP_LEVEL_NAME}_root`, this.scene);
+    this.islandRoot = new TransformNode(`${ISLAND_TOP_LEVEL_NAME}_root`, this.scene);
 
     this.boatRoot.position = new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
     this.islandRoot.position = new Vector3(22, this.parameterState.islandYOffset ?? 0, 10);
@@ -621,6 +625,11 @@ export class VisualOcean {
     if (this.boatCollisionSphere) {
       this.boatRoot.parent = this.boatCollisionSphere;
       this.boatRoot.position = Vector3.Zero();
+    }
+
+    if (this.islandCollisionSphere) {
+      this.islandRoot.parent = this.islandCollisionSphere;
+      this.islandRoot.position = Vector3.Zero();
     }
 
     await this.loadBoatModel(this.boatModelId);
@@ -1208,7 +1217,6 @@ export class VisualOcean {
 
     if (islandHasBounds && islandBounds && this.islandRoot) {
       const delta = islandSphereCenter.subtract(islandBounds.center);
-      this.islandAlignmentOffset.addInPlace(delta);
       this.islandRoot.position.addInPlace(delta);
     }
 
@@ -1250,7 +1258,6 @@ export class VisualOcean {
           delta.normalize().scaleInPlace(maxStep);
         }
         if (delta.lengthSquared() > 0.0001) {
-          this.islandAlignmentOffset.addInPlace(delta);
           this.islandRoot.position.addInPlace(delta);
         }
       }
@@ -1284,11 +1291,7 @@ export class VisualOcean {
       }
     }
 
-    if (this.islandRoot) {
-      this.islandRoot.position.x = 22 + this.islandAlignmentOffset.x;
-      this.islandRoot.position.z = 10 + this.islandAlignmentOffset.z;
-      this.islandRoot.position.y = islandYOffset + this.islandAlignmentOffset.y;
-    } else {
+    if (!this.islandRoot) {
       this.islandCollisionCenter.x = 22;
       this.islandCollisionCenter.z = 10;
       this.islandCollisionCenter.y = islandYOffset;

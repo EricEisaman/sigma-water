@@ -824,6 +824,32 @@ export class VisualOcean {
     return { height, normal };
   }
 
+  private sampleIslandWaterHeight(bounds: {
+    center: Vector3;
+    extentX: number;
+    extentZ: number;
+  }): number {
+    const cx = bounds.center.x;
+    const cz = bounds.center.z;
+    const spanX = Math.max(bounds.extentX * 0.45, 0.35);
+    const spanZ = Math.max(bounds.extentZ * 0.45, 0.35);
+
+    const samples = [
+      this.sampleWaterSurface(cx, cz).height,
+      this.sampleWaterSurface(cx - spanX, cz).height,
+      this.sampleWaterSurface(cx + spanX, cz).height,
+      this.sampleWaterSurface(cx, cz - spanZ).height,
+      this.sampleWaterSurface(cx, cz + spanZ).height,
+    ];
+
+    // RippleFlux is highly local; emphasizing crests improves shoreline response without moving island geometry.
+    if (this.isRippleFluxActive()) {
+      return Math.max(...samples);
+    }
+
+    return samples.reduce((sum, value) => sum + value, 0) / samples.length;
+  }
+
   private normalizeAngle(angle: number): number {
     let normalized = angle;
     while (normalized > Math.PI) {
@@ -1299,7 +1325,7 @@ export class VisualOcean {
       if (islandBounds) {
         const shorelineBandWidth = Math.min(Math.max(this.parameterState.islandShorelineBandWidth ?? 0.28, 0.08), 0.8);
         const shorelineFoamGain = Math.max(this.parameterState.islandShorelineFoamGain ?? 1, 0);
-        const islandWaterHeight = this.sampleWaterSurface(islandBounds.center.x, islandBounds.center.z).height;
+        const islandWaterHeight = this.sampleIslandWaterHeight(islandBounds);
         this.islandCollisionCenter.set(islandBounds.center.x, islandWaterHeight, islandBounds.center.z);
         const shorelineRadius = (islandBounds.extentX + islandBounds.extentZ) * 0.25;
         this.islandCollisionRadius = Math.max(1.0, shorelineRadius);

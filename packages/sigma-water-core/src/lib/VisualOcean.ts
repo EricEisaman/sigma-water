@@ -69,6 +69,7 @@ export class VisualOcean {
   private scene: Scene | null = null;
   private camera: FreeCamera | null = null;
   private oceanMesh: Mesh | null = null;
+  private skyboxMesh: Mesh | null = null;
   private shaderRegistry: ShaderRegistry | null = null;
   private currentShaderName: WaterTypeId = 'gerstnerWaves';
   private depthRenderer: DepthRenderer | null = null;
@@ -288,16 +289,32 @@ export class VisualOcean {
 
   private async setupEnvironment(): Promise<void> {
     if (!this.scene) throw new Error('Scene not initialized');
-    
+
+    await this.applyEnvironmentMap(this.config.environmentMapPath);
+  }
+
+  private async applyEnvironmentMap(environmentMapPath: string): Promise<void> {
+    if (!this.scene) throw new Error('Scene not initialized');
+
     try {
-      const envTexture = new EXRCubeTexture(this.config.environmentMapPath, this.scene, 512);
+      const previousTexture = this.scene.environmentTexture;
+      const envTexture = new EXRCubeTexture(environmentMapPath, this.scene, 512);
+      this.skyboxMesh?.dispose();
       this.scene.environmentTexture = envTexture;
       this.scene.environmentIntensity = 1.2;
-      this.scene.createDefaultSkybox(envTexture, true, 5000, 0.3, false);
-      console.log('✅ Environment loaded');
+      this.skyboxMesh = this.scene.createDefaultSkybox(envTexture, true, 5000, 0.3, false) ?? null;
+      if (previousTexture && previousTexture !== envTexture) {
+        previousTexture.dispose();
+      }
+      this.config.environmentMapPath = environmentMapPath;
+      console.log(`✅ Environment loaded: ${environmentMapPath}`);
     } catch (e) {
-      console.warn('⚠️ Environment load failed', e);
+      console.warn(`⚠️ Environment load failed for ${environmentMapPath}`, e);
     }
+  }
+
+  public async switchSky(environmentMapPath: string): Promise<void> {
+    await this.applyEnvironmentMap(environmentMapPath);
   }
 
   private async createOceanMesh(): Promise<void> {
@@ -1860,6 +1877,9 @@ export class VisualOcean {
     this.islandIntersectionFoamTexture = null;
     this.boatCollisionSphere?.dispose();
     this.islandCollisionSphere?.dispose();
+    this.skyboxMesh?.dispose();
+    this.skyboxMesh = null;
+    this.scene?.environmentTexture?.dispose();
     this.disposeModelNodes(this.boatModelNodes);
     this.disposeModelNodes(this.islandModelNodes);
     this.boatCollisionSphere = null;

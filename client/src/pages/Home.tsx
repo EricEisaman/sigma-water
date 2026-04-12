@@ -120,6 +120,12 @@ export default function Home() {
     }
   };
 
+  const handleSkyPresetChange = (skyPresetFile: string) => {
+    if (oceanRef.current) {
+      void oceanRef.current.switchSky(`/assets/images/${skyPresetFile}`);
+    }
+  };
+
   const handleBoatModelChange = (modelId: BoatModelId) => {
     if (oceanRef.current) {
       void oceanRef.current.setBoatModel(modelId);
@@ -202,6 +208,7 @@ export default function Home() {
           onCameraChange={handleCameraChange}
           onTopDownView={handleTopDownView}
           onShaderChange={handleShaderChange}
+          onSkyPresetChange={handleSkyPresetChange}
           onBoatModelChange={handleBoatModelChange}
           onIslandModelChange={handleIslandModelChange}
           onCollisionModeChange={setCollisionMode}

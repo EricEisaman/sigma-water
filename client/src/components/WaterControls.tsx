@@ -13,7 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RotateCcw, Settings2, Eye, Wind, Boxes, Menu, X, Share2 } from 'lucide-react';
+import { RotateCcw, Settings2, Eye, Wind, Boxes, Menu, X, Share2, Link2 } from 'lucide-react';
 import { orbitCameraPosition } from '@/lib/cameraOrbit';
 import { 
   BOAT_MODEL_OPTIONS,
@@ -34,9 +34,23 @@ interface WaterControlsProps {
   onCameraChange: (x: number, y: number, z: number) => void;
   onTopDownView: () => void;
   onShaderChange?: (waterType: WaterType) => void;
+  onSkyPresetChange?: (skyPresetFile: string) => void;
   onBoatModelChange?: (modelId: BoatModelId) => void;
   onIslandModelChange?: (modelId: IslandModelId) => void;
   onCollisionModeChange?: (mode: number) => void;
+}
+
+const SKY_PRESET_OPTIONS = [
+  { file: 'citrus_orchard_road_puresky_1k.exr', label: 'Citrus Orchard - Pure Sky' },
+  { file: 'kiara_1_dawn_1k.exr', label: 'Kiara Dawn' },
+] as const;
+
+type SkyPresetFile = (typeof SKY_PRESET_OPTIONS)[number]['file'];
+
+const SKY_PRESET_FILE_SET = new Set<string>(SKY_PRESET_OPTIONS.map((preset) => preset.file));
+
+function isSkyPresetFile(value: unknown): value is SkyPresetFile {
+  return typeof value === 'string' && SKY_PRESET_FILE_SET.has(value);
 }
 
 type ControlValues = {
@@ -88,6 +102,7 @@ type ControlValues = {
   depthFadeDistance: number;
   depthFadeExponent: number;
   specularIntensity: number;
+  skyPresetFile: SkyPresetFile;
   boatModel: BoatModelId;
   boatX: number;
   boatZ: number;
@@ -159,6 +174,7 @@ const DEFAULT_VALUES: ControlValues = {
   depthFadeDistance: 1.15,
   depthFadeExponent: 1.65,
   specularIntensity: 1.0,
+  skyPresetFile: 'citrus_orchard_road_puresky_1k.exr',
   boatModel: 'divingBoat',
   boatX: -12,
   boatZ: -24,
@@ -228,6 +244,7 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   depthFadeDistance: 'dfd',
   depthFadeExponent: 'dfe',
   specularIntensity: 'si',
+  skyPresetFile: 'spf',
   boatModel: 'bm',
   boatX: 'bx',
   boatZ: 'bz',
@@ -282,6 +299,10 @@ function parseControlValue(key: keyof ControlValues, sourceVal: unknown): Contro
     return sourceVal === 'lighthouseIsland' ? 'lighthouseIsland' : 'boathouseIsland';
   }
 
+  if (key === 'skyPresetFile') {
+    return isSkyPresetFile(sourceVal) ? sourceVal : DEFAULT_VALUES.skyPresetFile;
+  }
+
   const parsed = Number(sourceVal);
   if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
     return parsed;
@@ -318,9 +339,19 @@ function hasRecognizedUrlParams(params: URLSearchParams): boolean {
   });
 }
 
-function buildSearchParamsFromValues(values: ControlValues): URLSearchParams {
+function buildSearchParamsFromValues(values: ControlValues, cleanOnly = false): URLSearchParams {
   const params = new URLSearchParams();
   CONTROL_KEYS.forEach((key) => {
+    if (cleanOnly) {
+      if (key === 'waterType') {
+        if (serializeWaterType(values[key]) === serializeWaterType(DEFAULT_VALUES[key])) {
+          return;
+        }
+      } else if (values[key] === DEFAULT_VALUES[key]) {
+        return;
+      }
+    }
+
     if (key === 'waterType') {
       params.set(PARAM_KEYS[key], serializeWaterType(values[key]));
       return;
@@ -392,7 +423,7 @@ function getStartupSettingsResolution(): StartupSettingsResolution {
   };
 }
 
-export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange }: WaterControlsProps) {
+export function WaterControls({ onParameterChange, onCameraChange, onTopDownView, onShaderChange, onSkyPresetChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange }: WaterControlsProps) {
   const startupResolution = useState<StartupSettingsResolution>(() => getStartupSettingsResolution())[0];
   const initialValues = startupResolution.initialValues;
 
@@ -448,6 +479,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
   const [depthFadeDistance, setDepthFadeDistance] = useState(initialValues.depthFadeDistance);
   const [depthFadeExponent, setDepthFadeExponent] = useState(initialValues.depthFadeExponent);
   const [specularIntensity, setSpecularIntensity] = useState(initialValues.specularIntensity);
+  const [skyPresetFile, setSkyPresetFile] = useState<SkyPresetFile>(initialValues.skyPresetFile);
 
   // Objects
   const [boatModel, setBoatModel] = useState(initialValues.boatModel);
@@ -538,6 +570,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setDepthFadeDistance(values.depthFadeDistance);
     setDepthFadeExponent(values.depthFadeExponent);
     setSpecularIntensity(values.specularIntensity);
+    setSkyPresetFile(values.skyPresetFile);
     setBoatModel(values.boatModel);
     setBoatX(values.boatX);
     setBoatZ(values.boatZ);
@@ -664,6 +697,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('depthFadeDistance', values.depthFadeDistance);
     onParameterChange('depthFadeExponent', values.depthFadeExponent);
     onParameterChange('specularIntensity', values.specularIntensity);
+    onSkyPresetChange?.(values.skyPresetFile);
     onBoatModelChange?.(values.boatModel);
     onParameterChange('boatX', values.boatX);
     onParameterChange('boatZ', values.boatZ);
@@ -688,7 +722,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       values.cameraHeight
     );
     onCameraChange(position.x, position.y, position.z);
-  }, [onParameterChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange, onShaderChange, onCameraChange]);
+  }, [onParameterChange, onSkyPresetChange, onBoatModelChange, onIslandModelChange, onCollisionModeChange, onShaderChange, onCameraChange]);
 
   const handleKeepSavedSettings = useCallback(() => {
     if (pendingStartupConflict) {
@@ -776,6 +810,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraHeight,
     cameraAngle,
     waterType,
+    skyPresetFile,
   }), [
     waterMeshScale,
     waveAmplitude,
@@ -843,9 +878,10 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraHeight,
     cameraAngle,
     waterType,
+    skyPresetFile,
   ]);
 
-  const handleShare = useCallback(async () => {
+  const handleShare = useCallback(async (cleanOnly = false) => {
     if (typeof window === 'undefined') return;
 
     let valuesForShare: ControlValues | null = null;
@@ -865,12 +901,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(valuesForShare));
     }
 
-    const params = buildSearchParamsFromValues(valuesForShare);
-    const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}${window.location.hash}`;
+    const params = buildSearchParamsFromValues(valuesForShare, cleanOnly);
+    const query = params.toString();
+    const shareUrl = `${window.location.origin}${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
-      toast.success('Share URL copied to clipboard');
+      toast.success(cleanOnly ? 'Clean share URL copied to clipboard' : 'Share URL copied to clipboard');
     } catch {
       toast.error('Unable to copy share URL');
     }
@@ -980,6 +1017,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     cameraHeight,
     cameraAngle,
     waterType,
+    skyPresetFile,
     isStartupResolved,
     buildCurrentControlValues,
   ]);
@@ -1338,6 +1376,14 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     }
   }, [onShaderChange]);
 
+  const handleSkyPresetChange = useCallback((presetFile: string) => {
+    if (!isSkyPresetFile(presetFile)) {
+      return;
+    }
+    setSkyPresetFile(presetFile);
+    onSkyPresetChange?.(presetFile);
+  }, [onSkyPresetChange]);
+
   const toggleSection = (section: 'waves' | 'effects' | 'objects' | 'camera' | 'waterType' | 'waterMesh') => {
     setExpandedSection(expandedSection === section ? null : section);
   };
@@ -1400,12 +1446,31 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
             <div>
               <CardTitle className="text-xl font-bold text-white">🌊 Controls</CardTitle>
               <CardDescription className="text-xs text-slate-400 mt-1">SIGGRAPH-Grade Rendering</CardDescription>
+              <div className="mt-1 flex items-center gap-3 text-[10px] text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  <Link2 className="h-3 w-3" />
+                  Clean link
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Share2 className="h-3 w-3" />
+                  Full link
+                </span>
+              </div>
             </div>
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleShare}
+                onClick={() => { void handleShare(true); }}
+                title="Share clean link (non-default controls)"
+                className="h-8 w-8 p-0 hover:bg-slate-700/50"
+              >
+                <Link2 className="h-4 w-4 text-slate-300" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { void handleShare(false); }}
                 title="Share current controls"
                 className="h-8 w-8 p-0 hover:bg-slate-700/50"
               >
@@ -1829,6 +1894,18 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
                 {supportsShaderControl('skyReflectionMix') && (
                 <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Sky Preset</label>
+                  <select
+                    value={skyPresetFile}
+                    onChange={(e) => handleSkyPresetChange(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-slate-700/50 border border-slate-600/50 text-white text-sm focus:outline-none focus:border-purple-400/50 transition-colors"
+                  >
+                    {SKY_PRESET_OPTIONS.map((preset) => (
+                      <option key={preset.file} value={preset.file}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
                   <label className="text-sm font-medium text-slate-300">
                     Sky Reflection Mix: <span className="text-purple-400 font-bold">{skyReflectionMix.toFixed(2)}</span>
                   </label>

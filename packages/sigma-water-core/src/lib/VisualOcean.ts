@@ -57,6 +57,10 @@ const BOAT_INSTANCE_NUMBER = 1;
 const ISLAND_INSTANCE_NUMBER = 1;
 const BOAT_TOP_LEVEL_NAME = `boat_${BOAT_INSTANCE_NUMBER}`;
 const ISLAND_TOP_LEVEL_NAME = `island_${ISLAND_INSTANCE_NUMBER}`;
+const DEFAULT_BOAT_X = -12;
+const DEFAULT_BOAT_Z = -24;
+const DEFAULT_ISLAND_X = 22;
+const DEFAULT_ISLAND_Z = 10;
 
 export class VisualOcean {
   private canvas: HTMLCanvasElement;
@@ -332,6 +336,22 @@ export class VisualOcean {
 
   private getRippleFluxAmplitude(): number {
     return Math.max(this.parameterState.waveAmplitude ?? 1, 0.05);
+  }
+
+  private getBoatBaseX(): number {
+    return this.parameterState.boatX ?? DEFAULT_BOAT_X;
+  }
+
+  private getBoatBaseZ(): number {
+    return this.parameterState.boatZ ?? DEFAULT_BOAT_Z;
+  }
+
+  private getIslandBaseX(): number {
+    return this.parameterState.islandX ?? DEFAULT_ISLAND_X;
+  }
+
+  private getIslandBaseZ(): number {
+    return this.parameterState.islandZ ?? DEFAULT_ISLAND_Z;
   }
 
   private getWaterMeshScale(): number {
@@ -619,8 +639,8 @@ export class VisualOcean {
     this.boatRoot = new TransformNode(`${BOAT_TOP_LEVEL_NAME}_root`, this.scene);
     this.islandRoot = new TransformNode(`${ISLAND_TOP_LEVEL_NAME}_root`, this.scene);
 
-    this.boatRoot.position = new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
-    this.islandRoot.position = new Vector3(22, this.parameterState.islandYOffset ?? 0, 10);
+    this.boatRoot.position = new Vector3(this.getBoatBaseX(), this.parameterState.boatYOffset ?? 0.4, this.getBoatBaseZ());
+    this.islandRoot.position = new Vector3(this.getIslandBaseX(), this.parameterState.islandYOffset ?? 0, this.getIslandBaseZ());
 
     if (this.boatCollisionSphere) {
       this.boatRoot.parent = this.boatCollisionSphere;
@@ -666,7 +686,8 @@ export class VisualOcean {
     if (boatBounds) {
       return boatBounds.center.clone();
     }
-    return new Vector3(-12, this.parameterState.boatYOffset ?? 0.4, -24);
+    const waterHeight = this.sampleWaterSurface(this.getBoatBaseX(), this.getBoatBaseZ()).height;
+    return new Vector3(this.getBoatBaseX(), waterHeight + (this.parameterState.boatYOffset ?? 0.4), this.getBoatBaseZ());
   }
 
   private getIslandAnchorCenter(): Vector3 {
@@ -674,7 +695,11 @@ export class VisualOcean {
     if (islandBounds) {
       return islandBounds.center.clone();
     }
-    return this.islandRoot?.getAbsolutePosition().clone() ?? new Vector3(22, this.parameterState.islandYOffset ?? 0, 10);
+    if (this.islandRoot) {
+      return this.islandRoot.getAbsolutePosition().clone();
+    }
+    const waterHeight = this.sampleWaterSurface(this.getIslandBaseX(), this.getIslandBaseZ()).height;
+    return new Vector3(this.getIslandBaseX(), waterHeight + (this.parameterState.islandYOffset ?? 0), this.getIslandBaseZ());
   }
 
   private async loadBoatModel(modelId: BoatModelId): Promise<void> {
@@ -1272,29 +1297,41 @@ export class VisualOcean {
     const bobAmount = 0.18 + waveAmplitude * 0.08;
     const boatYOffset = this.parameterState.boatYOffset ?? 0.4;
     const islandYOffset = this.parameterState.islandYOffset ?? 0;
+    const boatBaseX = this.getBoatBaseX();
+    const boatBaseZ = this.getBoatBaseZ();
+    const islandBaseX = this.getIslandBaseX();
+    const islandBaseZ = this.getIslandBaseZ();
+    const boatBaseWaterHeight = this.sampleWaterSurface(boatBaseX, boatBaseZ).height;
+    const islandBaseWaterHeight = this.sampleWaterSurface(islandBaseX, islandBaseZ).height;
 
     if (!rippleFluxActive && this.collisionMode === 0 && this.boatCollisionSphere) {
-      this.boatCollisionSphere.position.x = -12;
-      this.boatCollisionSphere.position.z = -24;
+      this.boatCollisionSphere.position.x = boatBaseX;
+      this.boatCollisionSphere.position.z = boatBaseZ;
       this.boatCollisionSphere.position.y = this.sampleWaterSurface(this.boatCollisionSphere.position.x, this.boatCollisionSphere.position.z).height + boatYOffset;
     }
 
     if (!rippleFluxActive && this.collisionMode === 1) {
       if (this.boatCollisionSphere) {
-        this.boatCollisionSphere.position.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
-        this.boatCollisionSphere.position.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
+        this.boatCollisionSphere.position.x = boatBaseX + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
+        this.boatCollisionSphere.position.z = boatBaseZ + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
         this.boatCollisionCenter.copyFrom(this.boatCollisionSphere.position);
       } else {
-        this.boatCollisionCenter.x = -12 + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
-        this.boatCollisionCenter.z = -24 + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
-        this.boatCollisionCenter.y = boatYOffset + Math.sin(this.elapsedTime * (0.85 + windSpeed * 0.45)) * bobAmount;
+        this.boatCollisionCenter.x = boatBaseX + Math.sin(this.elapsedTime * (0.19 + windSpeed * 0.11)) * 0.75;
+        this.boatCollisionCenter.z = boatBaseZ + Math.cos(this.elapsedTime * (0.16 + windSpeed * 0.09)) * 0.55;
+        this.boatCollisionCenter.y = boatBaseWaterHeight + boatYOffset + Math.sin(this.elapsedTime * (0.85 + windSpeed * 0.45)) * bobAmount;
       }
     }
 
+    if (!rippleFluxActive && this.collisionMode === 1 && this.islandCollisionSphere) {
+      this.islandCollisionSphere.position.x = islandBaseX;
+      this.islandCollisionSphere.position.z = islandBaseZ;
+      this.islandCollisionSphere.position.y = islandBaseWaterHeight + islandYOffset;
+    }
+
     if (!this.islandRoot) {
-      this.islandCollisionCenter.x = 22;
-      this.islandCollisionCenter.z = 10;
-      this.islandCollisionCenter.y = islandYOffset;
+      this.islandCollisionCenter.x = islandBaseX;
+      this.islandCollisionCenter.z = islandBaseZ;
+      this.islandCollisionCenter.y = islandBaseWaterHeight + islandYOffset;
     }
 
     if (!rippleFluxActive && this.collisionMode === 1) {
@@ -1320,7 +1357,7 @@ export class VisualOcean {
         }
         this.boatCollisionRadius = Math.max(0.5, 2.2 * (this.parameterState.boatScale ?? 1));
         const boatWaterHeight = this.sampleWaterSurface(this.boatCollisionCenter.x, this.boatCollisionCenter.z).height;
-        this.boatCollisionCenter.y = boatWaterHeight;
+        this.boatCollisionCenter.y = boatWaterHeight + boatYOffset;
         this.boatIntersectionFactor = Math.max(0, Math.min(1, (boatWaterHeight - boatYOffset + 0.6) / 1.5));
       }
 
@@ -1341,7 +1378,7 @@ export class VisualOcean {
         }
         this.islandCollisionRadius = Math.max(1.0, 4.0 * (this.parameterState.islandScale ?? 1));
         const islandWaterHeight = this.sampleWaterSurface(this.islandCollisionCenter.x, this.islandCollisionCenter.z).height;
-        this.islandCollisionCenter.y = islandWaterHeight;
+        this.islandCollisionCenter.y = islandWaterHeight + islandYOffset;
         this.islandIntersectionFactor = Math.max(0, Math.min(1, (islandWaterHeight - islandYOffset + 1.2) / 2.5));
       }
     } else {
@@ -1603,7 +1640,7 @@ export class VisualOcean {
       return;
     }
 
-    if (key === 'boatYOffset' || key === 'islandYOffset') {
+    if (key === 'boatX' || key === 'boatZ' || key === 'islandX' || key === 'islandZ' || key === 'boatYOffset' || key === 'islandYOffset') {
       this.updateCollisionSimulation();
       this.applyCollisionUniforms();
       return;

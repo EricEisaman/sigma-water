@@ -89,9 +89,13 @@ type ControlValues = {
   depthFadeExponent: number;
   specularIntensity: number;
   boatModel: BoatModelId;
+  boatX: number;
+  boatZ: number;
   boatScale: number;
   boatYOffset: number;
   islandModel: IslandModelId;
+  islandX: number;
+  islandZ: number;
   islandScale: number;
   islandYOffset: number;
   islandShorelineBandWidth: number;
@@ -156,9 +160,13 @@ const DEFAULT_VALUES: ControlValues = {
   depthFadeExponent: 1.65,
   specularIntensity: 1.0,
   boatModel: 'divingBoat',
+  boatX: -12,
+  boatZ: -24,
   boatScale: 1,
   boatYOffset: 0.4,
   islandModel: 'boathouseIsland',
+  islandX: 22,
+  islandZ: 10,
   islandScale: 1,
   islandYOffset: 0,
   islandShorelineBandWidth: 0.28,
@@ -221,9 +229,13 @@ const PARAM_KEYS: Record<keyof ControlValues, string> = {
   depthFadeExponent: 'dfe',
   specularIntensity: 'si',
   boatModel: 'bm',
+  boatX: 'bx',
+  boatZ: 'bz',
   boatScale: 'bs',
   boatYOffset: 'by',
   islandModel: 'im',
+  islandX: 'ix',
+  islandZ: 'iz',
   islandScale: 'is',
   islandYOffset: 'iy',
   islandShorelineBandWidth: 'isb',
@@ -439,9 +451,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
   // Objects
   const [boatModel, setBoatModel] = useState(initialValues.boatModel);
+  const [boatX, setBoatX] = useState(initialValues.boatX);
+  const [boatZ, setBoatZ] = useState(initialValues.boatZ);
   const [boatScale, setBoatScale] = useState(initialValues.boatScale);
   const [boatYOffset, setBoatYOffset] = useState(initialValues.boatYOffset);
   const [islandModel, setIslandModel] = useState(initialValues.islandModel);
+  const [islandX, setIslandX] = useState(initialValues.islandX);
+  const [islandZ, setIslandZ] = useState(initialValues.islandZ);
   const [islandScale, setIslandScale] = useState(initialValues.islandScale);
   const [islandYOffset, setIslandYOffset] = useState(initialValues.islandYOffset);
   const [islandShorelineBandWidth, setIslandShorelineBandWidth] = useState(initialValues.islandShorelineBandWidth);
@@ -523,9 +539,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setDepthFadeExponent(values.depthFadeExponent);
     setSpecularIntensity(values.specularIntensity);
     setBoatModel(values.boatModel);
+    setBoatX(values.boatX);
+    setBoatZ(values.boatZ);
     setBoatScale(values.boatScale);
     setBoatYOffset(values.boatYOffset);
     setIslandModel(values.islandModel);
+    setIslandX(values.islandX);
+    setIslandZ(values.islandZ);
     setIslandScale(values.islandScale);
     setIslandYOffset(values.islandYOffset);
     setIslandShorelineBandWidth(values.islandShorelineBandWidth);
@@ -645,9 +665,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onParameterChange('depthFadeExponent', values.depthFadeExponent);
     onParameterChange('specularIntensity', values.specularIntensity);
     onBoatModelChange?.(values.boatModel);
+    onParameterChange('boatX', values.boatX);
+    onParameterChange('boatZ', values.boatZ);
     onParameterChange('boatScale', values.boatScale);
     onParameterChange('boatYOffset', values.boatYOffset);
     onIslandModelChange?.(values.islandModel);
+    onParameterChange('islandX', values.islandX);
+    onParameterChange('islandZ', values.islandZ);
     onParameterChange('islandScale', values.islandScale);
     onParameterChange('islandYOffset', values.islandYOffset);
     onParameterChange('islandShorelineBandWidth', values.islandShorelineBandWidth);
@@ -735,9 +759,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     depthFadeExponent,
     specularIntensity,
     boatModel,
+    boatX,
+    boatZ,
     boatScale,
     boatYOffset,
     islandModel,
+    islandX,
+    islandZ,
     islandScale,
     islandYOffset,
     islandShorelineBandWidth,
@@ -798,9 +826,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     depthFadeExponent,
     specularIntensity,
     boatModel,
+    boatX,
+    boatZ,
     boatScale,
     boatYOffset,
     islandModel,
+    islandX,
+    islandZ,
     islandScale,
     islandYOffset,
     islandShorelineBandWidth,
@@ -931,9 +963,13 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     depthFadeExponent,
     specularIntensity,
     boatModel,
+    boatX,
+    boatZ,
     boatScale,
     boatYOffset,
     islandModel,
+    islandX,
+    islandZ,
     islandScale,
     islandYOffset,
     islandShorelineBandWidth,
@@ -1190,6 +1226,18 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     onBoatModelChange?.(modelId);
   }, [onBoatModelChange]);
 
+  const handleBoatXChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setBoatX(val);
+    onParameterChange('boatX', val);
+  }, [onParameterChange]);
+
+  const handleBoatZChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setBoatZ(val);
+    onParameterChange('boatZ', val);
+  }, [onParameterChange]);
+
   const handleBoatYOffsetChange = useCallback((value: number[]) => {
     const val = value[0];
     setBoatYOffset(val);
@@ -1206,6 +1254,18 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
     setIslandModel(modelId);
     onIslandModelChange?.(modelId);
   }, [onIslandModelChange]);
+
+  const handleIslandXChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setIslandX(val);
+    onParameterChange('islandX', val);
+  }, [onParameterChange]);
+
+  const handleIslandZChange = useCallback((value: number[]) => {
+    const val = value[0];
+    setIslandZ(val);
+    onParameterChange('islandZ', val);
+  }, [onParameterChange]);
 
   const handleIslandYOffsetChange = useCallback((value: number[]) => {
     const val = value[0];
@@ -2054,6 +2114,34 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
+                    Boat X Position: <span className="text-amber-400 font-bold">{boatX.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[boatX]}
+                    onValueChange={(v) => handleBoatXChange(v)}
+                    min={-200.0}
+                    max={200.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Boat Z Position: <span className="text-amber-400 font-bold">{boatZ.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[boatZ]}
+                    onValueChange={(v) => handleBoatZChange(v)}
+                    min={-200.0}
+                    max={200.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
                     Boat Y Position: <span className="text-amber-400 font-bold">{boatYOffset.toFixed(2)}</span>
                   </label>
                   <Slider
@@ -2091,6 +2179,34 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                     min={0.5}
                     max={2.0}
                     step={0.05}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Island X Position: <span className="text-amber-400 font-bold">{islandX.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[islandX]}
+                    onValueChange={(v) => handleIslandXChange(v)}
+                    min={-200.0}
+                    max={200.0}
+                    step={0.1}
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">
+                    Island Z Position: <span className="text-amber-400 font-bold">{islandZ.toFixed(2)}</span>
+                  </label>
+                  <Slider
+                    value={[islandZ]}
+                    onValueChange={(v) => handleIslandZChange(v)}
+                    min={-200.0}
+                    max={200.0}
+                    step={0.1}
                     className="w-full"
                   />
                 </div>

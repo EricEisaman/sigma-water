@@ -1650,7 +1650,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   <Slider
                     value={[waveAmplitude]}
                     onValueChange={(v) => handleWaveAmplitudeChange(v)}
-                    min={0.5}
+                    min={0.2}
                     max={4.0}
                     step={0.1}
                     className="w-full"

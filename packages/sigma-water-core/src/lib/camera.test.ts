@@ -1,8 +1,8 @@
 import { boostedCameraSpeed, topDownCameraPosition } from './camera';
 
 describe('camera helpers', () => {
-  test('topDownCameraPosition clamps minimum height', () => {
-    expect(topDownCameraPosition(5)).toEqual({ x: 0, y: 10, z: 0.001 });
+  test('topDownCameraPosition allows zero height', () => {
+    expect(topDownCameraPosition(0)).toEqual({ x: 0, y: 0, z: 0.001 });
     expect(topDownCameraPosition(42)).toEqual({ x: 0, y: 42, z: 0.001 });
   });
 

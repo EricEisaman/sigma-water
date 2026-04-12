@@ -11,8 +11,8 @@ describe('cameraOrbit', () => {
     expect(p90.z).toBeCloseTo(110, 6);
   });
 
-  test('topDownCameraPosition clamps minimum height', () => {
-    expect(topDownCameraPosition(5)).toEqual({ x: 0, y: 10, z: 0.001 });
+  test('topDownCameraPosition allows zero height', () => {
+    expect(topDownCameraPosition(0)).toEqual({ x: 0, y: 0, z: 0.001 });
     expect(topDownCameraPosition(260)).toEqual({ x: 0, y: 260, z: 0.001 });
   });
 });

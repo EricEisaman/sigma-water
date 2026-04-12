@@ -2527,7 +2527,7 @@ export function WaterControls({ onParameterChange, onCameraChange, onTopDownView
                   <Slider
                     value={[cameraHeight]}
                     onValueChange={(v) => handleCameraHeightChange(v)}
-                    min={10}
+                    min={0}
                     max={600}
                     step={5}
                     className="w-full"
